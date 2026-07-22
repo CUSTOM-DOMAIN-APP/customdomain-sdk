@@ -5,12 +5,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/custom-domain-app/customdomain-js.git",
+    "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-js.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/custom-domain-app/customdomain-js/tree/main/packages/sdk#readme",
+  "homepage": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-js/tree/main/packages/sdk#readme",
   "bugs": {
-    "url": "https://github.com/custom-domain-app/customdomain-js/issues"
+    "url": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-js/issues"
   },
   "publishConfig": {
     "access": "public",
