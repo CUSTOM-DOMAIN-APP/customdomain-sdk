@@ -1,0 +1,40 @@
+{
+  "name": "@customdomain/react",
+  "version": "0.2.0",
+  "description": "React wrapper for customdomain-js — embed one-click custom-domain setup in your React app.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "git+https://github.com/custom-domain-app/customdomain-js.git", "directory": "packages/react" },
+  "homepage": "https://github.com/custom-domain-app/customdomain-js/tree/main/packages/react#readme",
+  "bugs": { "url": "https://github.com/custom-domain-app/customdomain-js/issues" },
+  "publishConfig": { "access": "public", "provenance": true },
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "dependencies": {
+    "customdomain-js": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "react": "^19",
+    "react-dom": "^19",
+    "@types/react": "^19",
+    "@types/react-dom": "^19"
+  },
+  "keywords": ["react", "dns", "domains", "custom-domain", "ssl", "entri-alternative"]
+}

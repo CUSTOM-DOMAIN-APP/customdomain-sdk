@@ -1,0 +1,41 @@
+{
+  "name": "customdomain-js",
+  "version": "0.2.0",
+  "description": "Customdomain SDK \u2014 embed one-click custom-domain setup in your app.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/custom-domain-app/customdomain-js.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/custom-domain-app/customdomain-js/tree/main/packages/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/custom-domain-app/customdomain-js/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "esbuild": "^0.28.1"
+  },
+  "keywords": [
+    "dns",
+    "domains",
+    "custom-domain",
+    "ssl",
+    "entri-alternative"
+  ]
+}

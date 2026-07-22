@@ -1,0 +1,67 @@
+name: release
+
+# Publish customdomain-js + @customdomain/react to npm WITH PROVENANCE — the
+# verifiable "built & published from custom-domain-app/customdomain-js" link
+# that shows on npmjs.com (your npm<->GitHub sync).
+#
+# Trigger: push a version tag (e.g. `v0.2.0`) after bumping package versions,
+# or run manually (workflow_dispatch, defaults to a dry-run).
+#
+# AUTH — two options, pick one on npmjs.com:
+#   A) TRUSTED PUBLISHING (tokenless, preferred): register this repo + this
+#      workflow as a Trusted Publisher for each package (org customdomain).
+#      Then no secret is needed; `id-token: write` below is what npm verifies.
+#   B) TOKEN: add a granular npm automation token as the repo secret NPM_TOKEN
+#      (publish scope for `customdomain-js` + the `@customdomain` scope).
+# Either way `--provenance` records the attestation. NEVER paste a token in
+# chat/issues — it goes in Settings -> Secrets only.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack/validate only, do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # OIDC — required for provenance + trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm -r build
+
+      - name: Publish customdomain-js (SDK)
+        working-directory: packages/sdk
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # unused under Trusted Publishing
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            pnpm publish --no-git-checks --dry-run
+          else
+            pnpm publish --no-git-checks --provenance --access public
+          fi
+
+      # react depends on customdomain-js via workspace:* — pnpm rewrites it to the
+      # concrete published version on publish (npm publish would not).
+      - name: Publish @customdomain/react
+        working-directory: packages/react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            pnpm publish --no-git-checks --dry-run
+          else
+            pnpm publish --no-git-checks --provenance --access public
+          fi

@@ -1,0 +1,16 @@
+{
+  "name": "customdomain-clients",
+  "private": true,
+  "description": "Official JavaScript/TypeScript client packages for customdomain.ai (SDK, React wrapper, widget).",
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "sim": "pnpm --filter @customdomain/widget sim"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/custom-domain-app/customdomain-js.git"
+  }
+}

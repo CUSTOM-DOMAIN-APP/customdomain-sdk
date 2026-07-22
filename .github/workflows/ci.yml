@@ -1,0 +1,23 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "pnpm" }
+      - run: pnpm install --no-frozen-lockfile
+      # Build first: @customdomain/react typechecks against customdomain-js's
+      # generated .d.ts, so the SDK must be built before the recursive typecheck.
+      - run: pnpm -r build
+      - run: pnpm -r typecheck
+      # Behavior gate: drive the real built bundles through Chromium (both
+      # connect journeys, locale, white-label theming, multi-domain, resume).
+      - name: Install Chromium for the widget sim
+        run: npx playwright@1.54.1 install --with-deps chromium
+      - run: pnpm --filter "@customdomain/widget" sim
