@@ -1,6 +1,6 @@
 {
   "name": "@customdomain/react",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "React wrapper for customdomain-js — embed one-click custom-domain setup in your React app.",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk.git", "directory": "packages/react" },
@@ -36,5 +36,18 @@
     "@types/react": "^19",
     "@types/react-dom": "^19"
   },
-  "keywords": ["react", "dns", "domains", "custom-domain", "ssl", "entri-alternative"]
+  "keywords": [
+    "react",
+    "react-hook",
+    "custom-domain",
+    "custom-domains",
+    "dns",
+    "dns-automation",
+    "white-label",
+    "byod",
+    "saas",
+    "multi-tenant",
+    "ssl",
+    "entri-alternative"
+  ]
 }
