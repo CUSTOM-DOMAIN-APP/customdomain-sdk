@@ -56,7 +56,7 @@ A `window.entri` compatibility shim is included for drop-in migration from Entri
 ## Links
 
 - Docs: https://app.customdomain.ai/docs
-- Issues: https://github.com/CUSTOM-DOMAIN-APP/customdomain-js/issues
+- Issues: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues
 - License: Apache-2.0
 
 ---

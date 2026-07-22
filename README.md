@@ -1,4 +1,4 @@
-# customdomain-js
+# customdomain-sdk
 
 Official JavaScript/TypeScript client packages for **[customdomain.ai](https://customdomain.ai)** —
 let your users connect their own custom domain to your app in one click, with automatic
