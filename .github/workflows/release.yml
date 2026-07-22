@@ -66,15 +66,21 @@ jobs:
             pnpm publish --no-git-checks --provenance --access public
           fi
 
-      # Only on a real tag push (never a manual dry-run dispatch) — mirrors the
-      # publish gate above so a GitHub Release never appears without a real
-      # npm publish behind it.
+      # Fires on a real tag push OR a non-dry-run manual dispatch — never a
+      # dry run — mirroring the publish gate above so a Release never appears
+      # without a real npm publish behind it. Reads the version from the SDK
+      # package.json (the single source of truth) rather than github.ref_name,
+      # since on workflow_dispatch that's the branch ("main"), not a tag —
+      # `gh release create` creates the underlying tag itself (--target pins
+      # it to this exact commit), so this doesn't depend on a tag already
+      # existing or on being able to `git push` one.
       - name: Create GitHub Release
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
+          VERSION="v$(node -p "require('./packages/sdk/package.json').version")"
+          gh release create "$VERSION" \
+            --title "$VERSION" \
             --generate-notes \
-            --verify-tag
+            --target "${{ github.sha }}"
