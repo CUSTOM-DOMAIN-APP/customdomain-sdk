@@ -26,7 +26,7 @@ on:
         default: true
 
 permissions:
-  contents: read
+  contents: write # tag pushes need read-only; a real release also creates a GitHub Release
   id-token: write # OIDC — required for provenance + trusted publishing
 
 jobs:
@@ -65,3 +65,16 @@ jobs:
           else
             pnpm publish --no-git-checks --provenance --access public
           fi
+
+      # Only on a real tag push (never a manual dry-run dispatch) — mirrors the
+      # publish gate above so a GitHub Release never appears without a real
+      # npm publish behind it.
+      - name: Create GitHub Release
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --verify-tag

@@ -1,6 +1,6 @@
 {
   "name": "customdomain-js",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Customdomain SDK \u2014 embed one-click custom-domain setup in your app.",
   "license": "Apache-2.0",
   "repository": {
