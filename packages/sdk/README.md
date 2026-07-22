@@ -1,13 +1,17 @@
 # customdomain-js
 
-The official JavaScript SDK for [customdomain.ai](https://customdomain.ai) — let your
-users connect their own custom domain to your app in one click, with automatic DNS,
-domain verification, and SSL. It opens the embeddable widget and streams the connect
-lifecycle back to you as events.
+[![npm](https://img.shields.io/npm/v/customdomain-js?color=1c1917)](https://www.npmjs.com/package/customdomain-js)
+[![license](https://img.shields.io/npm/l/customdomain-js?color=1c1917)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/LICENSE)
+
+The official custom-domain SDK for [customdomain.ai](https://customdomain.ai) — let your users
+connect **their own domain** (`acme.com`, not `acme.yourapp.com`) to your SaaS in one click.
+DNS record configuration, provider detection across ~50 registrars, domain verification, and
+SSL certificate issuance all happen behind the scenes; you just render a widget and listen
+for one event.
 
 ## Install
 
-**Hosted script (recommended — always current, no build step):**
+**Hosted script (recommended — always current, zero build step):**
 
 ```html
 <script src="https://app.customdomain.ai/widget-assets/customdomain-sdk.js"></script>
@@ -37,6 +41,10 @@ window.addEventListener("customdomain:success", (e) => {
 });
 ```
 
+That's it — no DNS provider SDKs, no ACME client, no polling loop. The widget handles apex
+domains (via [Domain Connect](https://www.domainconnect.org) or manual `A`/`ALIAS` records),
+`www` redirects, and certificate renewal for the lifetime of the connection.
+
 ## API (`window.customdomain`)
 
 | Method | Purpose |
@@ -51,13 +59,14 @@ window.addEventListener("customdomain:success", (e) => {
 **Events:** `customdomain:success`, `customdomain:close`, `customdomain:step`
 (carries `pendingDomains`/`processedDomains` for multi-domain), `customdomain:shared`.
 
-A `window.entri` compatibility shim is included for drop-in migration from Entri.
+A `window.entri` compatibility shim is included, so migrating off Entri is a one-line
+script-tag swap — no code changes.
 
 ## Links
 
-- Docs: https://app.customdomain.ai/docs
-- Issues: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues
-- License: Apache-2.0
+- Docs & full API reference: https://app.customdomain.ai/docs
+- Repo (source, React bindings, issues): https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk
+- License: [Apache-2.0](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/LICENSE)
 
 ---
 

@@ -1,13 +1,17 @@
 # @customdomain/react
 
-Idiomatic React bindings for [`customdomain-js`](../sdk) — embed one-click
-custom-domain setup (DNS auto-config + automatic SSL) in your React app.
+[![npm](https://img.shields.io/npm/v/@customdomain/react?color=1c1917)](https://www.npmjs.com/package/@customdomain/react)
+[![license](https://img.shields.io/npm/l/@customdomain/react?color=1c1917)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/LICENSE)
 
-It's a thin wrapper: the vanilla SDK does the real work (renders the widget in an
-iframe, drives the postMessage protocol). This package turns that into a
-`useCustomdomain()` hook and a `<CustomdomainConnect>` component, surfaces every
-`customdomain:*` window event as a callback prop, cleans up on unmount, and is
-SSR-safe (nothing touches `window` outside effects).
+Idiomatic React bindings for [`customdomain-js`](https://www.npmjs.com/package/customdomain-js)
+— add one-click custom-domain setup (DNS auto-configuration + automatic SSL) to your React app
+with a hook or a component, not a `<script>` tag and a pile of `useEffect`s.
+
+It's a thin wrapper: the vanilla SDK does the real work (renders the widget in an iframe,
+drives the postMessage protocol). This package turns that into a `useCustomdomain()` hook and
+a `<CustomdomainConnect>` component, surfaces every `customdomain:*` window event as a typed
+callback prop, cleans up on unmount, and is SSR-safe (nothing touches `window` outside effects
+— safe for Next.js, Remix, and friends).
 
 ## Install
 
@@ -74,7 +78,7 @@ function ConnectButton({ token }: { token: string }) {
 Each maps to a native `customdomain:*` window CustomEvent:
 
 | Prop             | Event                        | Payload                       |
-| ---------------- | ---------------------------- | ----------------------------- |
+| ---------------- | ---------------------------- | ------------------------------ |
 | `onSuccess`      | `customdomain:success`       | `SuccessResult`               |
 | `onClose`        | `customdomain:close`         | `CloseDetail`                 |
 | `onStep`         | `customdomain:step`          | `string` (current step)       |
@@ -86,6 +90,12 @@ Each maps to a native `customdomain:*` window CustomEvent:
 All other props are forwarded to the SDK's `OpenConfig` (`domain`, `whiteLabel`,
 `locale`, `container`, `forceManualSetup`, `onError`, …). Types are re-exported
 from `customdomain-js`, so your editor autocompletes every option.
+
+## Links
+
+- Docs & full API reference: https://app.customdomain.ai/docs
+- Repo (source, vanilla SDK, issues): https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk
+- License: [Apache-2.0](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/LICENSE)
 
 ## Typecheck
 

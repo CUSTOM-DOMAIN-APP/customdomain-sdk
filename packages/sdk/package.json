@@ -32,10 +32,20 @@
     "esbuild": "^0.28.1"
   },
   "keywords": [
-    "dns",
-    "domains",
     "custom-domain",
+    "custom-domains",
+    "dns",
+    "dns-automation",
+    "domain-connect",
+    "white-label",
+    "white-label-domain",
+    "byod",
+    "saas",
+    "multi-tenant",
     "ssl",
+    "acme",
+    "lets-encrypt",
+    "vanity-domain",
     "entri-alternative"
   ]
 }

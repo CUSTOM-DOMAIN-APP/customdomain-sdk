@@ -36,5 +36,18 @@
     "@types/react": "^19",
     "@types/react-dom": "^19"
   },
-  "keywords": ["react", "dns", "domains", "custom-domain", "ssl", "entri-alternative"]
+  "keywords": [
+    "react",
+    "react-hook",
+    "custom-domain",
+    "custom-domains",
+    "dns",
+    "dns-automation",
+    "white-label",
+    "byod",
+    "saas",
+    "multi-tenant",
+    "ssl",
+    "entri-alternative"
+  ]
 }
