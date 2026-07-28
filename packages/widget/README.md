@@ -18,8 +18,7 @@ pnpm --filter @customdomain/widget typecheck  # tsc --noEmit
 pnpm --filter @customdomain/widget sim        # node sim/simulate.mjs
 # or from this dir: npm run build / typecheck / sim
 ```
-`build` emits `dist/widget.js` and copies it to `host/widget.js` and
-`apps/app/public/widget-assets/widget.js`.
+`build` emits `dist/widget.js` and copies it to `host/widget.js`.
 
-Spec: [`PLAN/11-sdk-and-widget.md`](../../PLAN/11-sdk-and-widget.md) ·
-[`docs/parity/WIDGET-PRODUCT-SPEC-AND-PLAN.md`](../../docs/parity/WIDGET-PRODUCT-SPEC-AND-PLAN.md).
+The widget specification is maintained in the private product repository,
+`CUSTOM-DOMAIN-APP/custom-domains`.

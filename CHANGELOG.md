@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **This repo** (`CUSTOM-DOMAIN-APP/customdomain-sdk`) is the **npm publishing source**. It
   carries what the monorepo does not: `publishConfig` with provenance, the `v*`-tag release
   pipeline, the standalone CI, and the public-facing READMEs.
-- **The `custom-domains` monorepo** (`/home/user/custom-domains`) is where the source is
+- **The `CUSTOM-DOMAIN-APP/custom-domains` monorepo** is where the source is
   **developed**. Its `packages/sdk`, `packages/react` and `packages/widget` are all
   `"private": true`, and its own publish workflow was deleted precisely so it cannot publish
   over this repo.

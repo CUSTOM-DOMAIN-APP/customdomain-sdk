@@ -74,6 +74,26 @@ jobs:
       # `gh release create` creates the underlying tag itself (--target pins
       # it to this exact commit), so this doesn't depend on a tag already
       # existing or on being able to `git push` one.
+      # THE RELEASE DOES NOT END AT THE TAG PUSH — API-12.
+      # A version bump was once committed WITHOUT a tag. release.yml fires on
+      # `push: tags: ["v*"]` and on nothing else, so it never ran: no failing
+      # check anywhere, `packages/sdk/package.json` reading 0.4.0, and npm
+      # serving the pre-fix 0.3.0 source to every integrator for six days. The
+      # fix had been marked FIXED on the strength of the source edit alone.
+      #
+      # So the workflow now asks the REGISTRY whether the release happened,
+      # before it creates a GitHub Release announcing that it did. scripts/
+      # verify-release.sh polls dist-tags (npm's read path is a CDN and is
+      # eventually consistent), downloads the tarball npm actually serves, and
+      # diffs its src/ against this repo — the step that was skipped. Same
+      # command locally: `scripts/verify-release.sh`.
+      - name: VERIFY on the live registry (dist-tags + tarball diff + provenance)
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
+        run: scripts/verify-release.sh
+
+      # Gated on the verification above (a failed step fails the job, so this
+      # cannot run after a failed verify): a GitHub Release is an announcement,
+      # and it must never appear for a publish that did not reach npm.
       - name: Create GitHub Release
         if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
         env:
