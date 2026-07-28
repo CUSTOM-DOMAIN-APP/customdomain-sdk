@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "typescript": "^5.6.0",
-    "esbuild": "^0.28.1"
+    "esbuild": "0.28.1"
   },
   "keywords": [
     "custom-domain",
