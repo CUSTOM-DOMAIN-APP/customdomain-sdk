@@ -647,7 +647,12 @@ export class WidgetApp {
         return;
       }
       if (conn.status === "failed" || conn.status === "timed_out") {
-        this.failWith("TimeoutError");
+        // P6.4 · F11 — the control plane records WHY a connection failed
+        // (model.go:276-277 error_code/error_message). Passing the human half
+        // through as `details` replaces the generic timeout copy with the
+        // actual reason; an absent message falls back to that copy, so nothing
+        // regresses for a control plane that never set one.
+        this.failWith("TimeoutError", conn.error_message || undefined);
         return;
       }
     } catch (err) {

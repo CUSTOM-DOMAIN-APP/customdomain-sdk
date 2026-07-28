@@ -20,6 +20,7 @@ import {
   type SuccessResult,
   type CloseDetail,
   type StepDetail,
+  type PurchaseInitiated,
 } from "customdomain-js";
 
 // Re-export the SDK's public surface so consumers get fully-typed props/results
@@ -33,6 +34,7 @@ export type {
   SuccessResult,
   StepDetail,
   CloseDetail,
+  PurchaseInitiated,
   CheckDomainResult,
   CheckRecordsResult,
 } from "customdomain-js";
@@ -54,6 +56,16 @@ export interface CustomdomainEventHandlers {
   onRequestClose?: (detail: unknown) => void;
   /** `customdomain:shared` — a shared/delegated setup link event. */
   onShared?: (detail: unknown) => void;
+  /**
+   * `customdomain:purchase` — the widget created a checkout session for a
+   * domain the user is buying (WS4-F6). The widget cannot mount Stripe.js
+   * inside its own iframe, so this is the payment handoff: mount Embedded
+   * Checkout with `clientSecret` (or send the user to `url` for a hosted
+   * session), then finalize with POST /v1/registrar/fulfill, which registers
+   * and connects the domain. Start the flow with {@link
+   * UseCustomdomainResult.purchaseDomain}.
+   */
+  onPurchase?: (detail: PurchaseInitiated) => void;
 }
 
 /**
@@ -71,6 +83,14 @@ export type UseCustomdomainOptions = Omit<
 export interface UseCustomdomainResult {
   /** Open the widget modal. Optional per-call overrides merge over the options. */
   open: (overrides?: Partial<OpenConfig>) => { close: () => void } | undefined;
+  /**
+   * Sell: open the widget on the buy-a-domain screen (the SDK's
+   * `purchaseDomain`). This is the ONLY way in — the SDK gates the buy flow on
+   * a `purchase` flag that is not a member of `OpenConfig`, so `open()` cannot
+   * reach it through its overrides. Pair it with `onPurchase`, which receives
+   * the checkout session once the user picks a domain.
+   */
+  purchaseDomain: (overrides?: Partial<OpenConfig>) => { close: () => void } | undefined;
   /** Close/tear down the modal. */
   close: () => void;
   /** True once `window.customdomain` is available (client-side). */
@@ -85,7 +105,24 @@ const EVENT_HANDLERS: ReadonlyArray<[string, keyof CustomdomainEventHandlers]> =
   ["customdomain:doc-click", "onDocClick"],
   ["customdomain:request-close", "onRequestClose"],
   ["customdomain:shared", "onShared"],
+  ["customdomain:purchase", "onPurchase"],
 ];
+
+// Wrapper-only callbacks: every event above is delivered through the window
+// listeners, so leaving one of these on the config handed to the SDK would make
+// it fire twice. `onStep` has no SDK equivalent at all; `onError` is absent on
+// purpose — it has no window event, so the SDK is its only delivery path and it
+// must ride through (documented on UseCustomdomainOptions).
+const WRAPPER_ONLY_KEYS = [
+  "onSuccess",
+  "onClose",
+  "onStep",
+  "onStepChange",
+  "onDocClick",
+  "onRequestClose",
+  "onShared",
+  "onPurchase",
+] as const;
 
 /** Resolve the SDK instance, or null during SSR. */
 function getSdk(): CustomDomain | null {
@@ -96,9 +133,12 @@ function getSdk(): CustomDomain | null {
 }
 
 /**
- * useCustomdomain — imperative access to the widget. Wires the six window
- * CustomEvents to your callbacks (for the lifetime of the component) and returns
- * `open` / `close`. Listeners and any open modal are removed on unmount.
+ * useCustomdomain — imperative access to the widget. Wires the SDK's seven
+ * window CustomEvents (success, close, step, doc-click, request-close, shared,
+ * purchase — packages/sdk/src/index.ts:269-278, minus `error`, which the SDK
+ * delivers only through `onError`) to your callbacks for the lifetime of the
+ * component, and returns `open` / `purchaseDomain` / `close`. Listeners and any
+ * open modal are removed on unmount.
  */
 export function useCustomdomain(options: UseCustomdomainOptions): UseCustomdomainResult {
   // Keep the latest options/callbacks without re-subscribing listeners.
@@ -149,24 +189,36 @@ export function useCustomdomain(options: UseCustomdomainOptions): UseCustomdomai
     };
   }, []);
 
-  const open = useCallback((overrides?: Partial<OpenConfig>) => {
-    const sdk = getSdk();
-    if (!sdk) return undefined;
-    // Build the SDK config from the latest options, then strip the wrapper's
-    // event callbacks: every event is delivered through the window listeners
-    // above, so leaving `onSuccess`/`onClose` on the config would double-fire.
+  // Build the SDK config from the latest options, then strip the wrapper's
+  // event callbacks: every event is delivered through the window listeners
+  // above, so leaving `onSuccess`/`onClose` on the config would double-fire.
+  const sdkConfig = useCallback((overrides?: Partial<OpenConfig>): OpenConfig => {
     const config = { ...(optionsRef.current as unknown as OpenConfig), ...overrides };
-    for (const key of ["onSuccess", "onClose", "onStep", "onStepChange", "onDocClick", "onRequestClose", "onShared"]) {
+    for (const key of WRAPPER_ONLY_KEYS) {
       delete (config as Record<string, unknown>)[key];
     }
-    return sdk.open(config);
+    return config;
   }, []);
+
+  const open = useCallback(
+    (overrides?: Partial<OpenConfig>) => getSdk()?.open(sdkConfig(overrides)),
+    [sdkConfig]
+  );
+
+  // Delegates to the SDK's own purchaseDomain rather than setting the flag
+  // here: `purchase` is not a member of OpenConfig, and the SDK owns that cast
+  // (packages/sdk/src/index.ts:485-487). Re-implementing it in the wrapper is
+  // how the two surfaces drift apart again.
+  const purchaseDomain = useCallback(
+    (overrides?: Partial<OpenConfig>) => getSdk()?.purchaseDomain(sdkConfig(overrides)),
+    [sdkConfig]
+  );
 
   const close = useCallback(() => {
     getSdk()?.close();
   }, []);
 
-  return { open, close, ready };
+  return { open, purchaseDomain, close, ready };
 }
 
 export interface CustomdomainConnectProps extends UseCustomdomainOptions {
