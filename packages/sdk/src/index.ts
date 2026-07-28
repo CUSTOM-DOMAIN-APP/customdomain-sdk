@@ -34,6 +34,19 @@ export type SetupType = "automatic" | "manual" | "semiautomatic" | "sharedLogin"
 export interface WhiteLabel {
   colors?: Record<string, string>;
   font?: string;
+  /**
+   * Stylesheet URL loaded into the widget iframe so a self-hosted or
+   * third-party `@font-face` is available to the widget's Shadow-DOM content;
+   * `font` still selects the family. https-only and idempotent per URL
+   * (packages/widget/src/theme.ts:320-335, applied at app.ts:149), and subject
+   * to the widget page's own CSP.
+   *
+   * P6.8 · L8: the widget has consumed this since WS7-F5 and the SDK forwards
+   * `whiteLabel` whole, so it always worked at runtime — but it was absent from
+   * this interface, which meant a TypeScript integrator could not express it
+   * without a cast.
+   */
+  fontUrl?: string;
   borderRadius?: string;
   logo?: string;
   hideLogo?: boolean;
@@ -208,6 +221,21 @@ export interface CheckDomainResult {
   supportsAutomatic: boolean;
   oauthAvailable: boolean;
   domainConnect: boolean;
+  /**
+   * API-12 · the server's Public-Suffix-List parse of the checked domain.
+   *
+   * These are the authoritative split and exist precisely so a client does not
+   * have to guess one: the hand-maintained suffix lists this replaced produced
+   * wrong Domain Connect hosts and illegal apex records on long-tail suffixes
+   * (a `.co.uk` or `.s3.amazonaws.com` is two labels of suffix, not one).
+   *
+   * `subdomain` is `""` when the checked domain IS the registrable apex — a
+   * meaningful verdict, not a missing value, so test it with `=== ""` rather
+   * than for falsiness. The server sends it without omitempty for that reason.
+   */
+  subdomain?: string;
+  registrableDomain?: string;
+  publicSuffix?: string;
   registered?: boolean;
   authoritativeDnsProvider?: string;
   NSSupport?: { root?: boolean; subdomains?: boolean };
@@ -217,6 +245,25 @@ export interface CheckDomainResult {
   caaSupport?: boolean;
   supportsSocialLogin?: string;
   recordConflicts?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
+  /**
+   * P6.4 · F10 — the rest of the pre-flight the control plane already returns
+   * (connect.go:458-466). `recordConflicts` alone is not actionable without
+   * them: `willFallbackToManual` is the server's prediction that the provider
+   * stops writing automatically past `conflictTolerance` conflicts, so the
+   * one-click rail would quietly become a manual record list. A conflict of
+   * kind `caa-blocks-letsencrypt` is a CERTIFICATE advisory, not a DNS-write
+   * clash, and is deliberately excluded from that count.
+   */
+  conflictTolerance?: number;
+  willFallbackToManual?: boolean;
+  /**
+   * `apexSupported` is a PROVIDER fact (can it host a CNAME-like record at the
+   * zone root); `apexMessage` is a THIS-DOMAIN verdict, non-empty exactly when
+   * the apply would refuse this record set. Gate warnings on the MESSAGE — a
+   * subdomain connect on an apex-incapable provider is fine (CG-3).
+   */
+  apexSupported?: boolean;
+  apexMessage?: string;
 }
 
 /** checkRecords: per-record propagation state of a desired record set. */
@@ -311,6 +358,13 @@ export class CustomDomain {
       caaSupport: r.caa_support,
       supportsSocialLogin: r.supports_social_login,
       recordConflicts: r.record_conflicts,
+      conflictTolerance: r.conflict_tolerance,
+      willFallbackToManual: r.will_fallback_to_manual,
+      apexSupported: r.apex_supported,
+      apexMessage: r.apex_message,
+      subdomain: r.subdomain,
+      registrableDomain: r.registrable_domain,
+      publicSuffix: r.public_suffix,
     };
   }
 

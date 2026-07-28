@@ -117,6 +117,15 @@ export interface Connection {
   status: "pending" | "propagating" | "live" | "failed" | "timed_out";
   created_at: string;
   records?: DnsRecord[];
+  /**
+   * Last failure the control plane recorded (model.go:276-277
+   * Connection.ErrorCode/ErrorMessage). Both are `omitempty`, so a connection
+   * that never failed carries neither. `error_code` is the branchable machine
+   * code; `error_message` is the human-readable detail and is what a UI should
+   * show the end user — surfacing only the code is the P6.4 · F11 defect.
+   */
+  error_code?: string;
+  error_message?: string;
 }
 
 /** Payload the control-plane's OAuth callback page postMessages to the widget. */
