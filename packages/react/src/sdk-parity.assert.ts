@@ -40,7 +40,7 @@ const _handlerIsTyped: Exact<
 > = true;
 
 // …and must be able to START the flow. `open()` cannot: the SDK gates the buy
-// screen on a `purchase` flag that is not a member of OpenConfig (index.ts:485
+// screen on a `purchase` flag that is not a member of OpenConfig (index.ts:517
 // casts to set it), so a dedicated entry point is the only reachable route.
 const _canStartPurchase: Has<UseCustomdomainResult, "purchaseDomain"> = true;
 
