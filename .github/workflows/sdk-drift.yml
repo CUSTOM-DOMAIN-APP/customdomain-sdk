@@ -13,6 +13,21 @@
 #
 # It is deliberately not part of release.yml: that workflow answers "did this
 # release work?", which is worthless when the release never fired at all.
+#
+# THERE IS A SECOND sdk-drift, IN THE MONOREPO. They are not duplicates, and
+# neither should be deleted as one. The publishing chain has two hops:
+#
+#     monorepo source  ──►  THIS repo's source  ──►  npm
+#
+# The monorepo's .github/workflows/sdk-drift.yml watches the WHOLE chain
+# (monorepo vs npm). It catches more, but it cannot localise a failure, and it
+# has a built-in false-positive mode: unreleased work sitting in the monorepo
+# legitimately differs from npm, and that is not drift.
+#
+# This one watches only the LAST hop, and has no such ambiguity — a published
+# version is immutable, so npm disagreeing with this repo at that version is
+# always a bug. When both fire, read this one first: it tells you whether the
+# publish itself is broken or whether the monorepo simply has work in flight.
 name: sdk-drift
 
 on:
