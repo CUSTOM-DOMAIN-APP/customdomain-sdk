@@ -5,7 +5,7 @@
 
 The official custom-domain SDK for [customdomain.ai](https://customdomain.ai) — let your users
 connect **their own domain** (`acme.com`, not `acme.yourapp.com`) to your SaaS in one click.
-DNS record configuration, provider detection across ~50 registrars, domain verification, and
+DNS record configuration, provider detection across 63 providers, domain verification, and
 SSL certificate issuance all happen behind the scenes; you just render a widget and listen
 for one event.
 

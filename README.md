@@ -21,7 +21,7 @@
 ## Why this exists
 
 Custom domains are one of the highest-leverage features a SaaS product can ship — they're
-what turns "powered by [you]" into the customer's own brand. They're also a swamp: ~50 DNS
+what turns "powered by [you]" into the customer's own brand. They're also a swamp: dozens of DNS
 providers with incompatible record types, apex domains that can't hold a `CNAME` (RFC 1034),
 ACME certificate issuance, propagation delays, and a support queue full of "it says pending."
 
