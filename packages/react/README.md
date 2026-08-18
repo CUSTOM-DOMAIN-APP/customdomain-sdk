@@ -1,6 +1,7 @@
 # @customdomain/react
 
 [![npm](https://img.shields.io/npm/v/@customdomain/react?color=1c1917)](https://www.npmjs.com/package/@customdomain/react)
+[![downloads](https://img.shields.io/npm/dm/@customdomain/react?color=1c1917&label=downloads%2Fmonth)](https://www.npmjs.com/package/@customdomain/react)
 [![license](https://img.shields.io/npm/l/@customdomain/react?color=1c1917)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/LICENSE)
 
 Idiomatic React bindings for [`customdomain-js`](https://www.npmjs.com/package/customdomain-js)

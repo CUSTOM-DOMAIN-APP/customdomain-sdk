@@ -93,6 +93,24 @@ export interface OpenConfig {
    * DNS records the platform needs applied. Array mode, or incumbent's per-domain
    * object mode {"acme.com": [records]}. Optional: the control-plane's
    * authoritative per-connection record set is preferred when omitted.
+   *
+   * ROOT DOMAINS. A CNAME is illegal at a zone apex (RFC 1034 §3.6.2), and most
+   * of your users will type `acme.com`, not `www.acme.com`. What happens depends
+   * on their DNS provider:
+   *
+   *   - Cloudflare, Route 53, DNSimple and other flattening providers accept
+   *     your hostname at the root unchanged. Nothing to do.
+   *   - GoDaddy and Namecheap have no ALIAS/ANAME/flattening type at all. A
+   *     hostname CANNOT be placed at a root there, so those users cannot
+   *     complete the connection with a CNAME-only record set.
+   *
+   * Supply A records with your own addresses for the apex, steer those users to
+   * a subdomain, or route the apex through the reverse-proxy edge.
+   *
+   * `POST /v1/domains:check` returns `integration_warnings` with code
+   * `supplied_apex_unrealizable` when this applies — check it during
+   * integration. Testing with a subdomain will NOT reveal the problem; only your
+   * end users will hit it, and they cannot diagnose it.
    */
   dnsRecords?: DNSRecord[] | Record<string, DNSRecord[]>;
   applicationName?: string;
@@ -388,16 +406,30 @@ export class CustomDomain {
     });
     if (!res.ok) throw await toError(res);
     const r = await res.json();
-    const observed: Array<{ subdomain?: string; type?: string; values?: string[] }> = r.observed || [];
+    // The control plane emits `{domain, drift: bool, records: [{subdomain, type,
+    // verdict, drift, expected, observed}]}` (monitor.go:169-193) — the observed
+    // values live INSIDE each record, and `observed` is `omitempty`, so a record
+    // that resolved to nothing has no key at all. Reading a top-level `r.observed`
+    // /`r.in_sync` (which this endpoint has never emitted) made every record
+    // `ok: false` and `inSync: false` on a fully-propagated domain. The legacy
+    // top-level shape is still accepted so an older/alternate server keeps working.
+    const legacy: Array<{ subdomain?: string; type?: string; values?: string[] }> =
+      Array.isArray(r.observed) ? r.observed : [];
+    const emitted: Array<{ subdomain?: string; type?: string; observed?: string[]; values?: string[] }> =
+      Array.isArray(r.records) ? r.records : legacy;
     const records = baseline.map((b) => {
-      const o = observed.find(
+      const o = emitted.find(
         (x) => (x.subdomain || "") === b.subdomain && (x.type || "").toUpperCase() === b.type.toUpperCase()
       );
-      const values = o?.values || [];
+      const values = o?.observed || o?.values || [];
       const ok = b.values.every((v) => values.some((got) => got.toLowerCase().includes(v.toLowerCase())));
       return { host: b.subdomain || "@", type: b.type, ok, observed: values };
     });
-    return { domain, inSync: r.in_sync ?? records.every((x) => x.ok), records };
+    // `drift` is a BOOLEAN here and is always present, so it must be tested for
+    // the boolean it is — `r.in_sync ?? …` never fell through because the field
+    // was absent, not null.
+    const inSync = typeof r.drift === "boolean" ? !r.drift : (r.in_sync ?? records.every((x) => x.ok));
+    return { domain, inSync, records };
   }
 
   /** Open the embedded modal to connect a domain (the incumbent's modal-open method). */

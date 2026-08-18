@@ -1,12 +1,21 @@
 {
   "name": "@customdomain/react",
-  "version": "0.4.0",
-  "description": "React wrapper for customdomain-js — embed one-click custom-domain setup in your React app.",
+  "version": "0.4.1",
+  "description": "React wrapper for customdomain-js \u2014 embed one-click custom-domain setup in your React app.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk.git", "directory": "packages/react" },
-  "homepage": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/tree/main/packages/react#readme",
-  "bugs": { "url": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues" },
-  "publishConfig": { "access": "public", "provenance": true },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk.git",
+    "directory": "packages/react"
+  },
+  "homepage": "https://customdomain.ai",
+  "bugs": {
+    "url": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -17,7 +26,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"

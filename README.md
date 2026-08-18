@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/customdomain-js"><img alt="npm version" src="https://img.shields.io/npm/v/customdomain-js?color=1c1917&label=customdomain-js"></a>
+  <a href="https://www.npmjs.com/package/customdomain-js"><img alt="npm downloads" src="https://img.shields.io/npm/dm/customdomain-js?color=1c1917&label=downloads%2Fmonth"></a>
   <a href="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/npm/l/customdomain-js?color=1c1917"></a>
 </p>

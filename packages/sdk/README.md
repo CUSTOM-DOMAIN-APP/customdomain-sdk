@@ -1,6 +1,7 @@
 # customdomain-js
 
 [![npm](https://img.shields.io/npm/v/customdomain-js?color=1c1917)](https://www.npmjs.com/package/customdomain-js)
+[![downloads](https://img.shields.io/npm/dm/customdomain-js?color=1c1917&label=downloads%2Fmonth)](https://www.npmjs.com/package/customdomain-js)
 [![license](https://img.shields.io/npm/l/customdomain-js?color=1c1917)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/LICENSE)
 
 The official custom-domain SDK for [customdomain.ai](https://customdomain.ai) — let your users
