@@ -7,7 +7,6 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/customdomain-js"><img alt="npm version" src="https://img.shields.io/npm/v/customdomain-js?color=1c1917&label=customdomain-js"></a>
-  <a href="https://www.npmjs.com/package/customdomain-js"><img alt="npm downloads" src="https://img.shields.io/npm/dm/customdomain-js?color=1c1917&label=downloads%2Fmonth"></a>
   <a href="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/npm/l/customdomain-js?color=1c1917"></a>
 </p>
@@ -17,6 +16,25 @@
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
     <img src="docs/assets/hero-light.svg" alt="Paste your domain, DNS verifies itself, live with SSL — the three-step connect flow" width="100%">
   </picture>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/customdomain-js">
+    <img alt="customdomain-js downloads per month on npm"
+         src="https://img.shields.io/npm/dm/customdomain-js?style=for-the-badge&color=1c1917&labelColor=1c1917&label=DOWNLOADS%20%2F%20MONTH">
+  </a>
+  <a href="https://www.npmjs.com/package/@customdomain/react">
+    <img alt="@customdomain/react downloads per month on npm"
+         src="https://img.shields.io/npm/dm/@customdomain/react?style=for-the-badge&color=44403c&labelColor=44403c&label=REACT%20%2F%20MONTH">
+  </a>
+</p>
+
+<p align="center">
+  <sub>
+    Registry downloads, refreshed by shields on every page load.
+    <code>@customdomain/react</code> depends on <code>customdomain-js</code>, so the two are
+    <strong>not additive</strong> — the first badge already contains the second.
+  </sub>
 </p>
 
 ## Why this exists
