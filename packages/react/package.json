@@ -4,7 +4,7 @@
   "description": "React wrapper for customdomain-js — embed one-click custom-domain setup in your React app.",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk.git", "directory": "packages/react" },
-  "homepage": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/tree/main/packages/react#readme",
+  "homepage": "https://customdomain.ai/custom-domains-for-saas",
   "bugs": { "url": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues" },
   "publishConfig": { "access": "public", "provenance": true },
   "type": "module",

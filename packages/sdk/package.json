@@ -8,7 +8,7 @@
     "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/tree/main/packages/sdk#readme",
+  "homepage": "https://customdomain.ai/custom-domains-for-saas",
   "bugs": {
     "url": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues"
   },
