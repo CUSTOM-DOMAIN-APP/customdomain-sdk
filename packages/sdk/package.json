@@ -1,6 +1,6 @@
 {
   "name": "customdomain-js",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Customdomain SDK \u2014 embed one-click custom-domain setup in your app.",
   "license": "Apache-2.0",
   "repository": {
@@ -8,7 +8,7 @@
     "url": "git+https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/tree/main/packages/sdk#readme",
+  "homepage": "https://customdomain.ai",
   "bugs": {
     "url": "https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/issues"
   },
