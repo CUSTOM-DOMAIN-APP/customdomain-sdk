@@ -1,128 +1,141 @@
-<h1 align="center">customdomain-sdk</h1>
+# Custom Domain SDK
 
-<p align="center">
-  Let your users bring their own domain — <code>acme.com</code> instead of <code>acme.yourapp.com</code> —
-  without writing a line of DNS.
-</p>
+The browser SDK that lets your SaaS users connect their own domain.
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/customdomain-js"><img alt="npm version" src="https://img.shields.io/npm/v/customdomain-js?color=1c1917&label=customdomain-js"></a>
-  <a href="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="license" src="https://img.shields.io/npm/l/customdomain-js?color=1c1917"></a>
-</p>
+**Status:** Maintained · v0.4.1 · TypeScript · published to npm with provenance
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.svg">
-    <img src="docs/assets/hero-light.svg" alt="Paste your domain, DNS verifies itself, live with SSL — the three-step connect flow" width="100%">
-  </picture>
-</p>
+[![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
+[![license](https://img.shields.io/badge/license-Apache--2.0-1c1917?style=flat)](./LICENSE)
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/customdomain-js">
-    <img alt="customdomain-js downloads per month on npm"
-         src="https://img.shields.io/npm/dm/customdomain-js?style=for-the-badge&color=1c1917&labelColor=1c1917&label=DOWNLOADS%20%2F%20MONTH">
-  </a>
-  <a href="https://www.npmjs.com/package/@customdomain/react">
-    <img alt="@customdomain/react downloads per month on npm"
-         src="https://img.shields.io/npm/dm/@customdomain/react?style=for-the-badge&color=44403c&labelColor=44403c&label=REACT%20%2F%20MONTH">
-  </a>
-</p>
+|  |  |
+|---|---|
+| **What it is** | Browser SDK and React bindings for the Custom Domain connect flow |
+| **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
+| **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
+| **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
+| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.4.1** on npm · every PR builds the real bundle and drives it through headless Chromium |
 
-<p align="center">
-  <sub>
-    Registry downloads, refreshed by shields on every page load.
-    <code>@customdomain/react</code> depends on <code>customdomain-js</code>, so the two are
-    <strong>not additive</strong> — the first badge already contains the second.
-  </sub>
-</p>
+This repository is the client half of [Custom Domain](https://customdomain.ai): two npm packages
+your application installs, plus the widget they open. Your app calls one function; the user pastes
+a domain; DNS records, ownership verification and TLS certificates are handled by the control
+plane. The backend, the edge and the certificate machinery are a separate private repository.
 
 ## Why this exists
 
-Custom domains are one of the highest-leverage features a SaaS product can ship — they're
-what turns "powered by [you]" into the customer's own brand. They're also a swamp: dozens of DNS
-providers with incompatible record types, apex domains that can't hold a `CNAME` (RFC 1034),
-ACME certificate issuance, propagation delays, and a support queue full of "it says pending."
+Letting customers bring their own domain is one of the highest-leverage features a SaaS product
+can ship — it is what turns "powered by us" into the customer's own brand. It is also a swamp.
+Every DNS provider exposes a different write API, or none. Apex domains cannot hold a `CNAME`
+([RFC 1034](https://datatracker.ietf.org/doc/html/rfc1034)), so half the internet's advice is
+wrong for half of your users. Certificates have to be issued on demand and renewed forever. And
+the failure mode is not an exception in your logs — it is a support ticket that says
+"it still says pending."
 
-`customdomain-sdk` is the client side of **[customdomain.ai](https://customdomain.ai)** — drop
-a widget into your settings page, and your users connect a domain the way they'd connect a
-payment method: paste it, follow three copy-paste DNS steps (or none, for the ~30 registrars
-we can configure automatically via [Domain Connect](https://www.domainconnect.org)), done.
-DNS verification, SSL issuance, and renewal happen behind the scenes.
+Custom Domain turns that into a payment-method-shaped interaction: paste the domain, and either
+the provider is authorised in one click or the widget shows the exact records and watches for
+them. Of the 63 DNS and registrar providers catalogued today, 25 have an automatic write path;
+the rest use a guided manual flow with automatic verification. Those counts are not marketing —
+they come from a live endpoint, and the Quickstart below shows you how to read it yourself.
 
-## What's in this repo
+![Paste your domain, DNS verifies itself, live with TLS — the three-step connect flow](docs/assets/hero-light.svg)
 
-| Package | npm | What it is |
-|---|---|---|
-| [`packages/sdk`](packages/sdk) | [`customdomain-js`](https://www.npmjs.com/package/customdomain-js) | The browser SDK — `window.customdomain`, opens the widget, streams connect events. Framework-agnostic. |
-| [`packages/react`](packages/react) | [`@customdomain/react`](https://www.npmjs.com/package/@customdomain/react) | A thin React wrapper — hooks and components around the SDK. |
-| [`packages/widget`](packages/widget) | `@customdomain/widget` *(private)* | The embeddable widget UI itself. Builds to the bundle the SDK loads; not published to npm — served hosted so it's always current. |
+## Install
 
-## Quickstart
+```sh
+npm install customdomain-js          # framework-agnostic
+npm install @customdomain/react      # React hooks and components
+```
+
+Or skip the build step entirely and load the hosted bundle, which is always current:
 
 ```html
-<!-- Hosted (recommended): always current, zero build step -->
 <script src="https://app.customdomain.ai/widget-assets/customdomain-sdk.js"></script>
 ```
 
-```sh
-npm install customdomain-js          # or: npm install @customdomain/react
-```
+## Quickstart
 
 ```js
-window.customdomain.open({
+import { customdomain } from "customdomain-js";
+
+customdomain.open({
   applicationId: "app_123",
-  token: TOKEN_FROM_YOUR_SERVER, // minted server-side — never ship your API key to the browser
+  token: TOKEN_FROM_YOUR_SERVER, // minted server-side — never ship an API key to the browser
 });
 
 window.addEventListener("customdomain:success", (e) => {
-  console.log("connected:", e.detail.domain);
+  console.log("connected:", e.detail.domain); // e.g. "acme.com"
 });
 ```
 
-Full API, events, and the React hooks: [`packages/sdk/README.md`](packages/sdk/README.md) ·
-[`packages/react/README.md`](packages/react/README.md).
+Check the live provider census the numbers above come from:
 
-## How it fits together
+```sh
+curl -s https://api.customdomain.ai/v1/providers/census | head -c 200
+```
+
+## What it does
+
+- **Opens the connect widget** — `customdomain.open(config)` mounts it in a shadow root, themed and localised.
+- **Detects the provider and writes the records** — one-click authorisation, a scoped provider API token, or [Domain Connect](https://www.domainconnect.org), with a guided manual path as the fallback.
+- **Verifies ownership without a separate challenge step** — control is proven by the rail that writes the DNS, or by the records appearing in authoritative DNS.
+- **Streams progress to your app** — `customdomain:success`, `:step`, `:close`, `:shared` events, plus `checkDomain()` and `checkRecords()` if you want to drive your own UI.
+- **White-labels** — colours, copy, locale and logo, so the flow reads as part of your product.
+
+## How it's organised
+
+```text
+.
+├── packages/sdk/         # customdomain-js — window.customdomain, framework-agnostic
+├── packages/react/       # @customdomain/react — hooks and components over the SDK
+├── packages/widget/      # the widget UI itself (private; served hosted, never published)
+├── scripts/              # verify-release.sh — asserts npm serves what this repo says
+├── llms.txt              # machine-readable index of this repo, for agents
+└── .github/workflows/    # ci · release (tag-driven, npm provenance) · sdk-drift (weekly)
+```
+
+Entry point: [`packages/sdk/src/index.ts`](packages/sdk/src/index.ts). Per-package APIs:
+[`packages/sdk/README.md`](packages/sdk/README.md) · [`packages/react/README.md`](packages/react/README.md).
 
 ```mermaid
 flowchart LR
-    A["Your app<br/>(customdomain-js / @customdomain/react)"] -->|opens| B[Widget]
+    A["Your app<br/>customdomain-js"] -->|open| B[Widget]
     B -->|domain + token| C["customdomain.ai<br/>control plane"]
-    C -->|DNS records| D["User's DNS provider<br/>(Domain Connect or manual)"]
-    C -->|ACME| E[Let's Encrypt]
+    C -->|records| D["User's DNS provider"]
+    C -->|ACME| E["Let's Encrypt"]
     D -.->|verified| C
     E -.->|certificate| C
     C -->|customdomain:success| A
 ```
 
-The SDK never talks to DNS providers directly — it opens the widget, which talks to the
-control plane, which handles verification and certificates. Your app just listens for events.
+The SDK never talks to a DNS provider directly. It opens the widget, the widget talks to the
+control plane, and your app listens for events.
 
 ## Develop
 
 ```sh
 pnpm install
-pnpm -r build        # build all packages
+pnpm -r build        # react typechecks against the SDK's generated .d.ts, so build first
 pnpm -r typecheck
-pnpm sim             # drive the real widget bundle through headless Chromium
+pnpm sim             # drives the built widget through headless Chromium, 6 scenarios
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck + build + the Chromium behavior sim on every PR.
+CI runs all four on every pull request. The sim is a behaviour gate, not a unit test: it walks
+the OAuth journey, the manual fallback, locale and white-label theming, sequential multi-domain,
+resume-of-a-live-domain, and share-link minting against a stub control plane with real wire shapes.
 
-## Release
+## Versioning and release
 
-Publishing is automated with **npm provenance** (the verifiable "published from this repo"
-signal on npmjs.com — our npm↔GitHub link). Bump versions, push a `vX.Y.Z` tag, and
-[`.github/workflows/release.yml`](.github/workflows/release.yml) publishes `customdomain-js` +
-`@customdomain/react`. Auth is npm **Trusted Publishing** (tokenless) or an `NPM_TOKEN` repo
-secret — configured on npmjs.com, never in source. See the workflow header for setup.
+[Semantic Versioning](https://semver.org/); the two published packages move in lockstep and share
+one [CHANGELOG.md](./CHANGELOG.md). Pushing a `vX.Y.Z` tag runs `release.yml`, which publishes with
+npm provenance. A separate weekly `sdk-drift` job compares this repo against the registry, because
+a release that silently never fires produces no failing check anywhere else.
 
-## Links
+## Known limitations
 
-- Product & docs: https://app.customdomain.ai/docs
-- API reference: https://app.customdomain.ai/docs (also machine-readable at [`llms.txt`](llms.txt))
-- License: [Apache-2.0](LICENSE)
+- `@customdomain/widget` is `private: true` and served hosted. You cannot self-host that bundle.
+- 38 of the 63 catalogued providers have no usable delegated write API, so their users get the guided manual flow. Verified against `GET https://api.customdomain.ai/v1/providers/census` on 2026-09-04: 63 catalogued, 17 provider-API, 6 OAuth, 2 Domain Connect, 38 manual.
+- Widget tokens must be minted by your server. There is no browser-safe API key, by design.
 
-> Backend, control plane, and infrastructure live in a separate private repository. This repo
-> contains only the public browser clients — the part you actually `npm install`.
+## License
+
+[Apache-2.0](./LICENSE) © EVERJUST Company. Custom Domain is a product of EVERJUST.
