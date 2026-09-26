@@ -162,12 +162,39 @@ export interface OpenConfig {
    * breaks a connect. Default false.
    */
   managed?: boolean;
+  /**
+   * Root domains: also connect www and redirect the root to it (true), connect
+   * the root alone (false), or leave unset to let the end user choose.
+   */
+  wwwRedirect?: boolean;
+  /**
+   * Return a fresh widget token (mint one on your server via POST /v1/tokens).
+   * Widget tokens last about 15 minutes and a user adding DNS records by hand
+   * often takes longer; with getToken the widget refreshes silently instead of
+   * stopping. Without it, the widget tells the user they can close the window
+   * and the connection still finishes on its own once the records appear.
+   */
+  getToken?: () => string | Promise<string>;
   /** Callbacks (in addition to the window CustomEvents). */
   onSuccess?: (result: SuccessResult) => void;
   onClose?: (detail: CloseDetail) => void;
   /** Receives the full step detail (superset of the legacy bare-string step). */
   onStepChange?: (step: StepDetail) => void;
   onError?: (err: CustomDomainError) => void;
+  /**
+   * The widget sent the user to copy records by hand instead of a one-click
+   * or sign-in flow, and why (no_end_user_rail, conflicts_exceed_tolerance,
+   * provider_unsupported, unknown_provider).
+   */
+  onFallback?: (detail: FallbackDetail) => void;
+}
+
+/** Detail of a `customdomain:fallback` event. */
+export interface FallbackDetail {
+  reason: string;
+  provider?: string;
+  screen?: string;
+  message?: string;
 }
 
 export interface SuccessResult {
@@ -282,6 +309,38 @@ export interface CheckDomainResult {
    */
   apexSupported?: boolean;
   apexMessage?: string;
+  /**
+   * Rail truth (B1). `supportsAutomatic` only ever meant "an adapter exists
+   * for this provider" — for GoDaddy that is an API key most accounts cannot
+   * obtain. `rails` says, per rail, whether it can run for THIS domain right
+   * now and why not when it can't; `recommendedRail` is the server's pick
+   * (the same precedence the widget routes on); `endUserAutomatic` is true
+   * when that pick needs nothing typed by the end user; `blockedReason` is
+   * set when no rail can connect the domain at all (`unregistered`,
+   * `platform_subdomain` — the latter is also refused by createConnection).
+   */
+  rails?: {
+    oauth: RailInfo;
+    domainConnect: RailInfo;
+    apiKey: RailInfo;
+    manual: RailInfo;
+  };
+  recommendedRail?: "oauth" | "domain_connect" | "api_key" | "manual";
+  endUserAutomatic?: boolean;
+  blockedReason?: "unregistered" | "platform_subdomain";
+  /** Best-effort deep link into the provider's DNS panel for this zone. */
+  dashboardUrl?: string;
+  /** The nameserver delegation the detector observed. */
+  nameservers?: string[];
+}
+
+/** One rail's availability on checkDomain. */
+export interface RailInfo {
+  available: boolean;
+  /** Machine reason, present exactly when `available` is false. */
+  reason?: string;
+  /** A note on an available rail most users still can't use (GoDaddy API gating). */
+  caveat?: string;
 }
 
 /** checkRecords: per-record propagation state of a desired record set. */
@@ -321,6 +380,7 @@ const EVT = {
   shared: "customdomain:shared",
   purchase: "customdomain:purchase",
   error: "customdomain:error",
+  fallback: "customdomain:fallback",
 } as const;
 
 function dispatch(name: string, detail: unknown) {
@@ -383,6 +443,19 @@ export class CustomDomain {
       subdomain: r.subdomain,
       registrableDomain: r.registrable_domain,
       publicSuffix: r.public_suffix,
+      rails: r.rails
+        ? {
+            oauth: r.rails.oauth,
+            domainConnect: r.rails.domain_connect,
+            apiKey: r.rails.api_key,
+            manual: r.rails.manual,
+          }
+        : undefined,
+      recommendedRail: r.recommended_rail,
+      endUserAutomatic: r.end_user_automatic,
+      blockedReason: r.blocked_reason,
+      dashboardUrl: r.dashboard_url,
+      nameservers: r.nameservers,
     };
   }
 
@@ -532,6 +605,33 @@ export class CustomDomain {
           const err = new CustomDomainError(payload?.code || "GenericError", payload?.message || "Widget error", payload?.details);
           this.lastError = { code: err.code, title: payload?.title, details: payload?.details };
           config.onError?.(err);
+          // Documented as a window event too; it used to reach only onError.
+          dispatch(EVT.error, { code: err.code, message: err.message, title: payload?.title, details: payload?.details });
+          break;
+        }
+        case "customdomain:fallback":
+          config.onFallback?.(payload as FallbackDetail);
+          dispatch(EVT.fallback, payload);
+          break;
+        case "customdomain:token-expired": {
+          // The widget's token expired mid-setup. Ask the integrator for a
+          // fresh one; answer with null when there is none so the widget moves
+          // straight to "you can close this window" instead of waiting.
+          const reply = (token: string | null) => {
+            try {
+              frame.contentWindow?.postMessage({ type: "customdomain:token", payload: { token } }, widgetBase);
+            } catch {
+              /* frame gone */
+            }
+          };
+          if (!config.getToken) {
+            reply(null);
+            break;
+          }
+          Promise.resolve()
+            .then(() => config.getToken!())
+            .then((tok) => reply(typeof tok === "string" && tok ? tok : null))
+            .catch(() => reply(null));
           break;
         }
       }
@@ -665,6 +765,8 @@ function buildInitPayload(
       forceSubdomain: config.forceSubdomain,
       searchType: config.searchType,
       managed: config.managed,
+      wwwRedirect: config.wwwRedirect,
+      canRefreshToken: typeof config.getToken === "function",
       purchase: (config as { purchase?: boolean }).purchase,
     },
   };

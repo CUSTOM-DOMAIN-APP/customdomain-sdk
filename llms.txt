@@ -1,32 +1,39 @@
 # customdomain-sdk
 
-> Official JavaScript/TypeScript client packages for customdomain.ai — let SaaS users connect
-> their own custom domain (e.g. `acme.com` instead of `acme.yourapp.com`) with automatic DNS
-> configuration, domain verification, and SSL certificate issuance.
+> Official JavaScript and TypeScript client packages for CustomDomain™ (customdomain.ai): let SaaS
+> users connect their own custom domain (for example `acme.com` instead of `acme.yourapp.com`)
+> with DNS records written for them, domain verification, and TLS certificate issuance.
 
 This repository contains the public browser clients only (backend and infrastructure are a
-separate private repository). Two packages publish to npm: `customdomain-js` (framework-agnostic
-SDK, exposes `window.customdomain`) and `@customdomain/react` (React hook + component bindings
-around the SDK). Both load an embeddable widget that a SaaS application mounts so its end users
-can connect a domain without manual DNS work; DNS record configuration (via Domain Connect for
-~30 supported registrars, or manual copy-paste instructions otherwise), verification, and ACME
-certificate issuance all happen server-side.
+separate private repository). Two packages publish to npm in lockstep, currently at 0.5.0:
+`customdomain-js` (framework agnostic SDK, exposes `window.customdomain`) and `@customdomain/react`
+(React hook and component bindings around the SDK). Both open an embeddable widget that a SaaS
+application mounts so its end users can connect a domain without manual DNS work. Of 63 catalogued
+DNS providers, 25 have an automatic write path (scoped API token, provider OAuth, or Domain
+Connect); the rest use a guided manual flow with automatic verification. Record writes,
+verification and ACME certificate issuance happen server side.
 
 ## SDK reference
 
-- [customdomain-js README](packages/sdk/README.md): Install, quickstart, and the full
-  `window.customdomain` API — `open(config)`, `checkDomain(domain)`, `checkRecords(...)`,
-  `load(config)` / `close()`, `loadSharedFlow(url)`, `purchaseDomain(...)` — and the
-  `customdomain:success` / `customdomain:close` / `customdomain:step` / `customdomain:shared`
-  events. Includes a `window.entri` compatibility shim for drop-in migration from Entri.
-- [@customdomain/react README](packages/react/README.md): The `useCustomdomain()` hook and
-  `<CustomdomainConnect>` component, with the full callback-prop-to-native-event mapping table.
-- [customdomain.ai API documentation](https://app.customdomain.ai/docs): Server-side API —
-  minting widget tokens, webhooks, and per-provider DNS record types.
+- [customdomain-js README](packages/sdk/README.md): install, quickstart, the `window.customdomain`
+  methods (`open(config)`, `checkDomain(domain, { token })`, `checkRecords(domain, { token,
+  dnsRecords })`, `purchaseDomain(config)`, `loadSharedFlow(url)`, `load()`, `close()`), the
+  options (including `getToken` for silent widget token refresh and `wwwRedirect` for root
+  domains), and the window events `customdomain:success`, `customdomain:close`,
+  `customdomain:step`, `customdomain:error`, `customdomain:fallback`, `customdomain:purchase`,
+  `customdomain:shared`, `customdomain:request-close`, `customdomain:doc-click`. Includes a
+  `window.entri` compatibility shim for drop-in migration.
+- [@customdomain/react README](packages/react/README.md): the `useCustomdomain()` hook and
+  `<CustomdomainConnect>` component, the callback-prop-to-window-event mapping, and selling
+  domains with `purchaseDomain()` and `onPurchase`.
+- [CHANGELOG](CHANGELOG.md): every published version, what changed, and the commit it was built from.
+- [CustomDomain™ documentation](https://docs.customdomain.ai/docs): the server side API (minting
+  widget tokens with `POST /v1/tokens`, webhooks, per-provider DNS behavior) and the full
+  [widget and SDK reference](https://docs.customdomain.ai/docs/widget-sdk/reference).
 
 ## Optional
 
-- [Repository](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk): Source, CI
+- [Repository](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk): source, CI
   (`.github/workflows/ci.yml`), and the provenance-signed release workflow
   (`.github/workflows/release.yml`) for both packages.
 - [License](LICENSE): Apache-2.0.

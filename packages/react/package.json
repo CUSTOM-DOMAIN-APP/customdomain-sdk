@@ -1,7 +1,7 @@
 {
   "name": "@customdomain/react",
-  "version": "0.4.1",
-  "description": "React wrapper for customdomain-js \u2014 embed one-click custom-domain setup in your React app.",
+  "version": "0.5.0",
+  "description": "React bindings for customdomain-js, the CustomDomain\u2122 SDK: add one-click custom domain setup to your React app with a hook or a component.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 {
   "name": "customdomain-clients",
   "private": true,
-  "description": "Official JavaScript/TypeScript client packages for customdomain.ai (SDK, React wrapper, widget).",
+  "description": "Official JavaScript and TypeScript client packages for CustomDomain\u2122 (customdomain.ai): the SDK, the React bindings, and the widget used by CI.",
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "build": "pnpm -r build",

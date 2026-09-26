@@ -1,7 +1,7 @@
 {
   "name": "customdomain-js",
-  "version": "0.4.1",
-  "description": "CustomDomain SDK \u2014 embed one-click custom-domain setup in your app.",
+  "version": "0.5.0",
+  "description": "CustomDomain\u2122 SDK: let your users connect their own domain in one click, with DNS records written, ownership verified and TLS issued for them.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

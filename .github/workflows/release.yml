@@ -1,20 +1,20 @@
 name: release
 
-# Publish customdomain-js + @customdomain/react to npm WITH PROVENANCE — the
+# Publish customdomain-js + @customdomain/react to npm WITH PROVENANCE: the
 # verifiable "built & published from custom-domain-app/customdomain-js" link
 # that shows on npmjs.com (your npm<->GitHub sync).
 #
 # Trigger: push a version tag (e.g. `v0.2.0`) after bumping package versions,
 # or run manually (workflow_dispatch, defaults to a dry-run).
 #
-# AUTH — two options, pick one on npmjs.com:
+# AUTH: two options, pick one on npmjs.com:
 #   A) TRUSTED PUBLISHING (tokenless, preferred): register this repo + this
 #      workflow as a Trusted Publisher for each package (org customdomain).
 #      Then no secret is needed; `id-token: write` below is what npm verifies.
 #   B) TOKEN: add a granular npm automation token as the repo secret NPM_TOKEN
 #      (publish scope for `customdomain-js` + the `@customdomain` scope).
 # Either way `--provenance` records the attestation. NEVER paste a token in
-# chat/issues — it goes in Settings -> Secrets only.
+# chat/issues; it goes in Settings -> Secrets only.
 on:
   push:
     tags: ["v*"]
@@ -27,7 +27,7 @@ on:
 
 permissions:
   contents: write # tag pushes need read-only; a real release also creates a GitHub Release
-  id-token: write # OIDC — required for provenance + trusted publishing
+  id-token: write # OIDC: required for provenance + trusted publishing
 
 jobs:
   publish:
@@ -53,7 +53,7 @@ jobs:
             pnpm publish --no-git-checks --provenance --access public
           fi
 
-      # react depends on customdomain-js via workspace:* — pnpm rewrites it to the
+      # react depends on customdomain-js via workspace:*; pnpm rewrites it to the
       # concrete published version on publish (npm publish would not).
       - name: Publish @customdomain/react
         working-directory: packages/react
@@ -66,15 +66,15 @@ jobs:
             pnpm publish --no-git-checks --provenance --access public
           fi
 
-      # Fires on a real tag push OR a non-dry-run manual dispatch — never a
-      # dry run — mirroring the publish gate above so a Release never appears
+      # Fires on a real tag push OR a non-dry-run manual dispatch, never a
+      # dry run, mirroring the publish gate above so a Release never appears
       # without a real npm publish behind it. Reads the version from the SDK
       # package.json (the single source of truth) rather than github.ref_name,
-      # since on workflow_dispatch that's the branch ("main"), not a tag —
+      # since on workflow_dispatch that's the branch ("main"), not a tag;
       # `gh release create` creates the underlying tag itself (--target pins
       # it to this exact commit), so this doesn't depend on a tag already
       # existing or on being able to `git push` one.
-      # THE RELEASE DOES NOT END AT THE TAG PUSH — API-12.
+      # THE RELEASE DOES NOT END AT THE TAG PUSH (API-12).
       # A version bump was once committed WITHOUT a tag. release.yml fires on
       # `push: tags: ["v*"]` and on nothing else, so it never ran: no failing
       # check anywhere, `packages/sdk/package.json` reading 0.4.0, and npm
@@ -85,7 +85,7 @@ jobs:
       # before it creates a GitHub Release announcing that it did. scripts/
       # verify-release.sh polls dist-tags (npm's read path is a CDN and is
       # eventually consistent), downloads the tarball npm actually serves, and
-      # diffs its src/ against this repo — the step that was skipped. Same
+      # diffs its src/ against this repo: the step that was skipped. Same
       # command locally: `scripts/verify-release.sh`.
       - name: VERIFY on the live registry (dist-tags + tarball diff + provenance)
         if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
@@ -94,13 +94,23 @@ jobs:
       # Gated on the verification above (a failed step fails the job, so this
       # cannot run after a failed verify): a GitHub Release is an announcement,
       # and it must never appear for a publish that did not reach npm.
+      #
+      # The notes are this version's CHANGELOG.md section (scripts/release-notes.sh),
+      # so every release reads the same way and says what changed for integrators.
+      # A version with no section falls back to notes generated from commits.
       - name: Create GitHub Release
         if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="v$(node -p "require('./packages/sdk/package.json').version")"
+          if scripts/release-notes.sh > "$RUNNER_TEMP/release-notes.md"; then
+            NOTES=(--notes-file "$RUNNER_TEMP/release-notes.md")
+          else
+            echo "::warning::CHANGELOG.md has no section for $VERSION; using generated notes"
+            NOTES=(--generate-notes)
+          fi
           gh release create "$VERSION" \
             --title "$VERSION" \
-            --generate-notes \
+            "${NOTES[@]}" \
             --target "${{ github.sha }}"
