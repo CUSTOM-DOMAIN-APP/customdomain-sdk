@@ -37,6 +37,23 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [0.5.1] (2026-09-26)
+
+Ported byte identical from the product monorepo's `packages/sdk/src` at `07a9358`. `packages/react/src`
+is unchanged.
+
+### Changed
+
+- **`customdomain-js`**: both widget iframes (the one `open()` and `purchaseDomain()` create, and the
+  one `loadSharedFlow()` creates) now carry `allow="clipboard-write"`, so the widget's Copy buttons
+  (DNS records, the AI prompt) write to the clipboard directly from the cross-origin frame instead of
+  through a fallback. It is write only: the widget cannot read the clipboard.
+- **`customdomain-js`**: the three doc comments that ship in the type definitions (on `OpenConfig`,
+  `theme` and `apiBase`) now use the CustomDomain™ brand.
+- **`@customdomain/react`**: no source change. It depends on `customdomain-js@0.5.1`.
+
+---
+
 ## [0.5.0] (2026-09-26)
 
 Ported byte identical from the product monorepo's `packages/sdk/src` and `packages/react/src`.
@@ -232,6 +249,7 @@ Breaking for TypeScript consumers who referenced them (both were type level only
 already at version 0.1.0. Version 0.1.0 was never published to npm, and there is no usable history
 before that point, so no 0.1.0 entry is reconstructed here.
 
+[0.5.1]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.3.0...v0.4.0

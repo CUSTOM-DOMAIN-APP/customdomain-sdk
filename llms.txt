@@ -5,7 +5,7 @@
 > with DNS records written for them, domain verification, and TLS certificate issuance.
 
 This repository contains the public browser clients only (backend and infrastructure are a
-separate private repository). Two packages publish to npm in lockstep, currently at 0.5.0:
+separate private repository). Two packages publish to npm in lockstep, currently at 0.5.1:
 `customdomain-js` (framework agnostic SDK, exposes `window.customdomain`) and `@customdomain/react`
 (React hook and component bindings around the SDK). Both open an embeddable widget that a SaaS
 application mounts so its end users can connect a domain without manual DNS work. Of 63 catalogued

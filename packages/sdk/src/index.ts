@@ -79,7 +79,7 @@ export interface WhiteLabel {
 
 /**
  * OpenConfig is IncumbentConfig-era-compatible (spec §1.6): incumbent key names are
- * accepted directly; Customdomain-native aliases noted inline.
+ * accepted directly; CustomDomain™-native aliases noted inline.
  */
 export interface OpenConfig {
   /** Application id (public). */
@@ -140,9 +140,9 @@ export interface OpenConfig {
    * whiteLabel.embedded.
    */
   container?: string;
-  /** Legacy Customdomain theme ({accent}). Prefer whiteLabel. */
+  /** Legacy CustomDomain™ theme ({accent}). Prefer whiteLabel. */
   theme?: Record<string, string>;
-  /** Control-plane + widget base URLs (defaults to Customdomain cloud). */
+  /** Control-plane + widget base URLs (defaults to CustomDomain™ cloud). */
   apiBase?: string;
   widgetBase?: string;
   /**
@@ -516,6 +516,9 @@ export class CustomDomain {
     frame.src = `${widgetBase}/widget?app=${encodeURIComponent(config.applicationId)}`;
     frame.setAttribute("title", "Connect your domain");
     frame.setAttribute("sandbox", config.iframeSandbox || DEFAULT_SANDBOX);
+    // Lets the widget's Copy buttons (records, the AI prompt) write to the
+    // clipboard from its cross-origin frame. Write only: it cannot read.
+    frame.setAttribute("allow", "clipboard-write");
     // Embedded mode mounts the iframe inside the host's container as a flat
     // panel; the default is the fullscreen modal overlay.
     const container = config.container ? document.querySelector(config.container) : null;
@@ -657,6 +660,7 @@ export class CustomDomain {
     frame.src = u.toString();
     frame.setAttribute("title", "Connect your domain");
     frame.setAttribute("sandbox", (config as OpenConfig | undefined)?.iframeSandbox || DEFAULT_SANDBOX);
+    frame.setAttribute("allow", "clipboard-write");
     Object.assign(frame.style, {
       position: "fixed",
       inset: "0",
