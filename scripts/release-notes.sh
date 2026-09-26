@@ -22,12 +22,13 @@ VERSION="${1:-$(node -p "require('./packages/sdk/package.json').version")}"
 REPO_URL="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk"
 
 # The section body: every line after the "## [X.Y.Z]" heading up to the next
-# "## " heading, minus the "---" rules between sections, with leading and
-# trailing blank lines removed. Plain POSIX awk, so mawk, gawk and BSD awk agree.
+# "## " heading, minus the "---" rules between sections and the link reference
+# definitions that close the file, with leading and trailing blank lines
+# removed. Plain POSIX awk, so mawk, gawk and BSD awk agree.
 section="$(awk -v v="$VERSION" '
 	index($0, "## [" v "]") == 1 { found = 1; next }
 	found && /^## / { exit }
-	found && $0 != "---" { lines[++n] = $0 }
+	found && $0 != "---" && $0 !~ /^\[[0-9A-Za-z.+-]+\]: / { lines[++n] = $0 }
 	END {
 		first = 1
 		while (first <= n && lines[first] ~ /^[ \t]*$/) first++
