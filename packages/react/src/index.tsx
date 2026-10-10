@@ -21,6 +21,7 @@ import {
   type CloseDetail,
   type StepDetail,
   type PurchaseInitiated,
+  type RemovedResult,
 } from "customdomain-js";
 
 // Re-export the SDK's public surface so consumers get fully-typed props/results
@@ -35,6 +36,7 @@ export type {
   StepDetail,
   CloseDetail,
   PurchaseInitiated,
+  RemovedResult,
   CheckDomainResult,
   CheckRecordsResult,
 } from "customdomain-js";
@@ -66,6 +68,15 @@ export interface CustomdomainEventHandlers {
    * UseCustomdomainResult.purchaseDomain}.
    */
   onPurchase?: (detail: PurchaseInitiated) => void;
+  /**
+   * `customdomain:removed`: a removal finished (the flow {@link
+   * UseCustomdomainResult.removeDomain} opens). The detail says what happened
+   * to the DNS records the connection added: `records` is `removed`,
+   * `partly_removed`, `kept`, `manual`, `in_use` or `not_needed`, with the
+   * `removed`, `restored` and `leftInPlace` record lists. The widget stays up
+   * on its summary until the user closes it.
+   */
+  onRemoved?: (detail: RemovedResult) => void;
 }
 
 /**
@@ -76,7 +87,7 @@ export interface CustomdomainEventHandlers {
  */
 export type UseCustomdomainOptions = Omit<
   OpenConfig,
-  "onSuccess" | "onClose" | "onStepChange"
+  "onSuccess" | "onClose" | "onStepChange" | "onRemoved"
 > &
   CustomdomainEventHandlers;
 
@@ -91,6 +102,15 @@ export interface UseCustomdomainResult {
    * the checkout session once the user picks a domain.
    */
   purchaseDomain: (overrides?: Partial<OpenConfig>) => { close: () => void } | undefined;
+  /**
+   * Remove a connected domain: open the widget on the removal flow (the SDK's
+   * `removeDomain`) for the `connectionId` in the options, or for the
+   * `prefilledDomain`/`domain` when you did not keep the id. Mint the token for
+   * that domain and end user. Pair it with `onRemoved`, which receives what
+   * happened to the DNS records. Like `purchaseDomain`, this is the entry point;
+   * `open()` always starts the connect flow.
+   */
+  removeDomain: (overrides?: Partial<OpenConfig>) => { close: () => void } | undefined;
   /** Close/tear down the modal. */
   close: () => void;
   /** True once `window.customdomain` is available (client-side). */
@@ -106,6 +126,7 @@ const EVENT_HANDLERS: ReadonlyArray<[string, keyof CustomdomainEventHandlers]> =
   ["customdomain:request-close", "onRequestClose"],
   ["customdomain:shared", "onShared"],
   ["customdomain:purchase", "onPurchase"],
+  ["customdomain:removed", "onRemoved"],
 ];
 
 // Wrapper-only callbacks: every event above is delivered through the window
@@ -122,6 +143,7 @@ const WRAPPER_ONLY_KEYS = [
   "onRequestClose",
   "onShared",
   "onPurchase",
+  "onRemoved",
 ] as const;
 
 /** Resolve the SDK instance, or null during SSR. */
@@ -133,11 +155,11 @@ function getSdk(): CustomDomain | null {
 }
 
 /**
- * useCustomdomain — imperative access to the widget. Wires the SDK's seven
+ * useCustomdomain: imperative access to the widget. Wires the SDK's eight
  * window CustomEvents (success, close, step, doc-click, request-close, shared,
- * purchase — packages/sdk/src/index.ts:269-278, minus `error`, which the SDK
+ * purchase, removed; packages/sdk/src/index.ts:269-278, minus `error`, which the SDK
  * delivers only through `onError`) to your callbacks for the lifetime of the
- * component, and returns `open` / `purchaseDomain` / `close`. Listeners and any
+ * component, and returns `open` / `purchaseDomain` / `removeDomain` / `close`. Listeners and any
  * open modal are removed on unmount.
  */
 export function useCustomdomain(options: UseCustomdomainOptions): UseCustomdomainResult {
@@ -214,11 +236,17 @@ export function useCustomdomain(options: UseCustomdomainOptions): UseCustomdomai
     [sdkConfig]
   );
 
+  // Same shape as purchaseDomain: the SDK owns how "remove" mode is set.
+  const removeDomain = useCallback(
+    (overrides?: Partial<OpenConfig>) => getSdk()?.removeDomain(sdkConfig(overrides)),
+    [sdkConfig]
+  );
+
   const close = useCallback(() => {
     getSdk()?.close();
   }, []);
 
-  return { open, purchaseDomain, close, ready };
+  return { open, purchaseDomain, removeDomain, close, ready };
 }
 
 export interface CustomdomainConnectProps extends UseCustomdomainOptions {

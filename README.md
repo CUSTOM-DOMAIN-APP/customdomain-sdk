@@ -2,7 +2,7 @@
 
 The browser SDK that lets your SaaS users connect their own domain.
 
-**Status:** Maintained · v0.5.1 · TypeScript · published to npm with provenance
+**Status:** Maintained · v0.5.2 · TypeScript · published to npm with provenance
 
 [![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
@@ -18,7 +18,7 @@ The browser SDK that lets your SaaS users connect their own domain.
 | **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
 | **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
 | **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
-| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.1** on npm · every pull request builds the real bundle and drives it through headless Chromium |
+| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.2** on npm · every pull request builds the real bundle and drives it through headless Chromium |
 
 This repository is the client half of [CustomDomain™](https://customdomain.ai): two npm packages
 your application installs, plus the widget they open. Your app calls one function; the user pastes
@@ -37,7 +37,7 @@ the failure mode is not an exception in your logs; it is a support ticket that s
 
 CustomDomain™ turns that into a payment-method-shaped interaction: paste the domain, and either
 the provider is authorized in one click or the widget shows the exact records and watches for
-them. Of the 63 DNS and registrar providers catalogued today, 25 have an automatic write path;
+them. Of the 178 DNS and registrar providers catalogued today, 62 have an automatic write path;
 the rest use a guided manual flow with automatic verification. Those counts come from a live
 endpoint, and the Quickstart below shows you how to read it yourself.
 
@@ -145,7 +145,7 @@ a release that silently never fires produces no failing check anywhere else.
 ## Known limitations
 
 - `@customdomain/widget` is `private: true` and served hosted from app.customdomain.ai. You cannot self-host that bundle, and the copy here exists for CI's browser simulation.
-- 38 of the 63 catalogued providers have no usable delegated write API, so their users get the guided manual flow. Verified against `GET https://api.customdomain.ai/v1/providers/census` on 2026-09-26: 63 catalogued, 17 provider API, 6 OAuth, 2 Domain Connect, 38 manual.
+- 116 of the 178 catalogued providers have no usable delegated write API, so their users get the guided manual flow. Verified against `GET https://api.customdomain.ai/v1/providers/census` on 2026-10-09: 178 catalogued, 55 provider API, 6 OAuth, 1 Domain Connect, 116 manual (62 with an automatic write path).
 - Widget tokens must be minted by your server. There is no browser-safe API key, by design.
 
 ## Related

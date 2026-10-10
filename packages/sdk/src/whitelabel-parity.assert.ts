@@ -11,7 +11,7 @@
  * recorded the feature as shipped.
  *
  * The list below mirrors `WhiteLabelConfig` in packages/widget/src/theme.ts
- * (:197-240) — the widget's own tenant-facing theming input. Type-only, no
+ * (:214-261), the widget's own tenant-facing theming input. Type-only, no
  * runtime behavior; it is compiled by `tsc -p tsconfig.json`, which is the
  * package's build, so a dropped key fails CI rather than shipping quietly.
  *
@@ -22,13 +22,15 @@
  */
 import type { WhiteLabel } from "./index";
 
-/** The key names packages/widget/src/theme.ts:197-240 accepts. */
+/** The key names packages/widget/src/theme.ts:214-261 accepts. */
 type WidgetWhiteLabelKeys =
   | "colors"
   | "font"
   | "fontUrl"
   | "borderRadius"
   | "logo"
+  | "logoDark"
+  | "logoPlate"
   | "hideLogo"
   | "hideConfetti"
   | "tokens"
@@ -47,5 +49,15 @@ type Covers<T, Keys extends keyof T> = Keys extends keyof T ? true : never;
 
 const _sdkCoversEveryWidgetKey: Covers<WhiteLabel, WidgetWhiteLabelKeys> = true;
 void _sdkCoversEveryWidgetKey;
+
+/**
+ * The other direction: `WhiteLabel` must not offer a key the list above lacks.
+ * `logoDark` and `logoPlate` lived in the widget and the source for a while but
+ * not in the published types; keeping the list and the interface equal means a
+ * key added to one without the other (and so without checking the widget) fails
+ * the build here, whichever side was edited.
+ */
+const _sdkOffersNoExtraKey: [keyof WhiteLabel] extends [WidgetWhiteLabelKeys] ? true : never = true;
+void _sdkOffersNoExtraKey;
 
 export type {};

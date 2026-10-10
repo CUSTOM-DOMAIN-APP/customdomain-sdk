@@ -13,10 +13,16 @@
  *
  * Adding a rail to the SDK? Add its assertion here in the same change.
  */
-import type { PurchaseInitiated as SdkPurchaseInitiated } from "customdomain-js";
+import type {
+  CustomDomain,
+  OpenConfig,
+  PurchaseInitiated as SdkPurchaseInitiated,
+  RemovedResult as SdkRemovedResult,
+} from "customdomain-js";
 import type {
   CustomdomainEventHandlers,
   PurchaseInitiated,
+  RemovedResult,
   UseCustomdomainOptions,
   UseCustomdomainResult,
 } from "./index";
@@ -44,8 +50,36 @@ const _handlerIsTyped: Exact<
 // casts to set it), so a dedicated entry point is the only reachable route.
 const _canStartPurchase: Has<UseCustomdomainResult, "purchaseDomain"> = true;
 
+// Removal: the SDK and the widget gained `removeDomain()`, `onRemoved` and the
+// `customdomain:removed` event, and this wrapper had no handler or entry point
+// for them. Same rule as the buy flow: the payload is the SDK's own type, the
+// handler is typed with it, and the hook can START the flow.
+const _removedPayloadIsReExported: Exact<RemovedResult, SdkRemovedResult> = true;
+const _removedHandlerExists: Has<CustomdomainEventHandlers, "onRemoved"> = true;
+const _removedHandlerIsAccepted: Has<UseCustomdomainOptions, "onRemoved"> = true;
+const _removedHandlerIsTyped: Exact<
+  Parameters<NonNullable<CustomdomainEventHandlers["onRemoved"]>>[0],
+  RemovedResult
+> = true;
+// The SDK carries the same callback on OpenConfig; if it stops, this fails.
+const _sdkHasOnRemoved: Has<OpenConfig, "onRemoved"> = true;
+const _sdkHasRemoveDomain: Has<CustomDomain, "removeDomain"> = true;
+// `open()` always starts the connect flow, so removal needs its own entry point,
+// as `purchaseDomain` does for the buy screen. It must also take the id of the
+// connection to remove, which only OpenConfig can carry.
+const _canStartRemoval: Has<UseCustomdomainResult, "removeDomain"> = true;
+const _removalIsAddressable: Has<OpenConfig, "connectionId" | "mode"> = true;
+
 export type {};
 void _payloadIsReExported;
+void _removedPayloadIsReExported;
+void _removedHandlerExists;
+void _removedHandlerIsAccepted;
+void _removedHandlerIsTyped;
+void _sdkHasOnRemoved;
+void _sdkHasRemoveDomain;
+void _canStartRemoval;
+void _removalIsAddressable;
 void _handlerExists;
 void _handlerIsAccepted;
 void _handlerIsTyped;
