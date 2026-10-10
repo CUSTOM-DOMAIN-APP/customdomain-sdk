@@ -37,6 +37,50 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [0.5.2] (2026-10-09)
+
+`packages/sdk/src/index.ts` is byte identical to the product monorepo's at `a5e00d8f`, which
+already carried the removal flow and the dark mode logos; the published 0.5.1 types predate them.
+`@customdomain/react` gains the matching handler and entry point. Everything here is additive: no
+type was removed or narrowed.
+
+### Added
+
+- **`customdomain-js`**: `CustomDomain.removeDomain(config)`, which opens the widget on the removal
+  flow for a connected domain. The widget shows the DNS records that were added, asks whether to
+  remove or keep them, and asks the user to sign in once more when the access used to connect was
+  not kept. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`, and mint the token
+  for that domain and end user.
+- **`customdomain-js`**: `OpenConfig.mode` (`"connect"` or `"remove"`, which `removeDomain()` sets)
+  and `OpenConfig.connectionId`.
+- **`customdomain-js`**: `OpenConfig.onRemoved`, the `customdomain:removed` window event and the
+  `RemovedResult` type (`{ domain, connectionId?, records, removed, restored, leftInPlace, user? }`).
+  They fire when a removal finishes; `records` says what happened to the DNS records
+  (`removed`, `partly_removed`, `kept`, `manual`, `in_use` or `not_needed`).
+- **`customdomain-js`**: `WhiteLabel.logoDark`, a separate logo for dark mode, and
+  `WhiteLabel.logoPlate`, which shows the light `logo` on a small light plate in dark mode when
+  there is no `logoDark`. The widget has read both for a while; the published types lacked them,
+  so TypeScript integrators needed a cast.
+- **`@customdomain/react`**: the `onRemoved` callback prop (`RemovedResult`), the `removeDomain()`
+  function on the `useCustomdomain` result, and the `RemovedResult` type re-export.
+
+### Changed
+
+- **Both packages**: the compile time parity checks (`whitelabel-parity.assert.ts` and
+  `sdk-parity.assert.ts`) now cover these members. The white-label check also runs in the other
+  direction, so a key that is in `WhiteLabel` but not in the widget's list fails the build.
+- **Docs**: the provider numbers in the READMEs and `llms.txt` are current: 178 catalogued
+  providers, 62 with an automatic write path (55 provider API, 6 OAuth, 1 Domain Connect) and 116
+  guided manual, verified against `GET https://api.customdomain.ai/v1/providers/census` on
+  2026-10-09. They said 63 and 25. Both READMEs document the removal flow and the dark mode logos.
+
+### Compatibility
+
+- `removeDomain()`, `logoDark` and `logoPlate` are read by the hosted widget. A hosted widget that
+  predates them ignores the fields, so setting them is safe.
+
+---
+
 ## [0.5.1] (2026-09-26)
 
 Ported byte identical from the product monorepo's `packages/sdk/src` at `07a9358`. `packages/react/src`
@@ -249,6 +293,7 @@ Breaking for TypeScript consumers who referenced them (both were type level only
 already at version 0.1.0. Version 0.1.0 was never published to npm, and there is no usable history
 before that point, so no 0.1.0 entry is reconstructed here.
 
+[0.5.2]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.4.0...v0.4.1

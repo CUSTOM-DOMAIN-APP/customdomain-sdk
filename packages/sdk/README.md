@@ -7,7 +7,7 @@
 
 The official JavaScript SDK for [CustomDomain™](https://customdomain.ai). Let your users connect
 **their own domain** (`acme.com`, not `acme.yourapp.com`) to your SaaS in one click. Provider
-detection across 63 DNS providers, the DNS records, domain verification and the TLS certificate
+detection across 178 DNS and registrar providers, the DNS records, domain verification and the TLS certificate
 all happen behind the scenes: you open a widget and listen for one event.
 
 [Website](https://customdomain.ai) · [Docs](https://docs.customdomain.ai/docs) · [Console](https://app.customdomain.ai) · [Widget and SDK reference](https://docs.customdomain.ai/docs/widget-sdk/reference) · [Changelog](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/CHANGELOG.md)
@@ -64,6 +64,7 @@ script exposes the same instance as `window.customdomain`.
 | `checkDomain(domain, { token })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. |
 | `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
+| `removeDomain(config)` | Open the widget on the removal flow for a connected domain. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`. Returns `{ close }`. See [Removing a domain](#removing-a-domain). |
 | `loadSharedFlow(url, config?)` | Resume a shared "finish setup" link with your branding. |
 | `load()` | Resolves when the SDK is ready, for parity with the hosted loader. |
 | `close()` | Close the widget. |
@@ -85,7 +86,8 @@ The ones most integrations use. The full list is in the
 | `locale` | `string` | UI language. |
 | `endUserRef` | `string` | Your id for this customer. Stored on the connection and shown in the console. |
 | `container` | `string` | CSS selector to render inside your page instead of as a modal. |
-| `onSuccess`, `onClose`, `onStepChange`, `onError`, `onFallback` | functions | Callbacks, delivered in addition to the window events below. |
+| `connectionId` | `string` | `removeDomain()` only: the connection to remove, when you kept its id. Otherwise the prefilled domain is looked up. |
+| `onSuccess`, `onClose`, `onStepChange`, `onError`, `onFallback`, `onRemoved` | functions | Callbacks, delivered in addition to the window events below. |
 
 ## Events
 
@@ -99,9 +101,62 @@ Every callback also arrives as a window `CustomEvent`, so you can listen from an
 | `customdomain:error` | `onError` | `{ code, message, title?, details? }`. `onError` receives a `CustomDomainError`. |
 | `customdomain:fallback` | `onFallback` | `{ reason, provider?, screen?, message? }`. Fires when the widget sends the user to copy records by hand instead of a one-click or sign-in flow. `reason` is one of `no_end_user_rail`, `conflicts_exceed_tolerance`, `provider_unsupported`, `unknown_provider`. |
 | `customdomain:purchase` | none | `{ domain, sessionId?, clientSecret?, url? }`: mount Stripe Embedded Checkout with `clientSecret`, then finalize with `POST /v1/registrar/fulfill`. |
+| `customdomain:removed` | `onRemoved` | `{ domain, connectionId?, records, removed, restored, leftInPlace, user? }`. Fires when a removal started with `removeDomain()` finishes. See [Removing a domain](#removing-a-domain). |
 | `customdomain:shared` | none | A shared setup link was created. |
 | `customdomain:request-close` | none | The user asked to close while `whiteLabel.delegateClose` is set; call `close()` when you are ready. |
 | `customdomain:doc-click` | none | The user opened a documentation link. |
+
+### White-label logos
+
+`whiteLabel.logo` is the logo the widget shows (an `https:` URL or a base64 image). Two more keys
+cover dark mode, used when `whiteLabel.darkMode` turns it on:
+
+- `logoDark`: a separate logo for dark mode. When it is set, dark mode shows it instead of `logo`.
+- `logoPlate`: for a logo drawn for light pages, with no `logoDark`. Dark mode shows `logo` on a
+  small light plate so it stays readable. It has no effect when `logoDark` is set.
+
+```ts
+customdomain.open({
+  applicationId: "app_123",
+  token,
+  whiteLabel: {
+    darkMode: "auto",
+    logo: "https://cdn.example.com/logo-light.svg",
+    logoDark: "https://cdn.example.com/logo-dark.svg",
+  },
+});
+```
+
+## Removing a domain
+
+`removeDomain(config)` opens the widget on the removal flow for a domain you connected earlier.
+Mint the token for that domain and end user (`POST /v1/tokens` with `domain` and `end_user_ref`):
+an end user's token bound to neither cannot remove it. Pass the `connectionId` if you kept it, or
+the domain as `domain` / `prefilledDomain`; it is looked up.
+
+The widget shows the DNS records that were added and asks whether to remove or keep them. If the
+access used to connect was not kept, it asks the user to sign in once more first. When the removal
+finishes, `onRemoved` (and the `customdomain:removed` window event) receives:
+
+| Field | Meaning |
+|---|---|
+| `domain` | The domain that was removed. |
+| `connectionId` | The connection, when known. |
+| `records` | What happened to the DNS records: `removed` (every record we added is gone), `partly_removed`, `kept` (the user kept them), `manual` (the user deletes them; the widget listed how), `in_use` (another application still serves the domain) or `not_needed`. |
+| `removed`, `restored`, `leftInPlace` | Lists of `{ type, name, value }` records: deleted, put back to their earlier value, and left at the provider. |
+| `user` | The `userId` you passed to `open`, echoed back. |
+
+The widget stays on its summary, with any records left for the user to delete, until the user
+closes it.
+
+```ts
+customdomain.removeDomain({
+  applicationId: "app_123",
+  token, // minted for this domain and end user
+  connectionId,
+  onRemoved: (r) => console.log(r.domain, r.records),
+});
+```
 
 ## Pre-flight with `checkDomain`
 

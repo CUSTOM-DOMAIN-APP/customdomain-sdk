@@ -5,10 +5,11 @@
  * protocol onto BOTH callback props and native `customdomain:*` window
  * CustomEvents. Global: `window.customdomain`.
  *
- * 7 methods: open, checkDomain, checkRecords, load, loadSharedFlow, close,
- * purchaseDomain. 7 window CustomEvents: customdomain:success, customdomain:close,
- * customdomain:step, customdomain:doc-click, customdomain:request-close,
- * customdomain:shared, customdomain:purchase.
+ * 8 methods: open, checkDomain, checkRecords, load, loadSharedFlow, close,
+ * purchaseDomain, removeDomain. 8 window CustomEvents: customdomain:success,
+ * customdomain:close, customdomain:step, customdomain:doc-click,
+ * customdomain:request-close, customdomain:shared, customdomain:purchase,
+ * customdomain:removed.
  *
  * Migration compatibility (the window.entri facade + onEntri* event aliases) is
  * isolated in compat.ts and installed via installEntriCompat() — that module is
@@ -49,6 +50,10 @@ export interface WhiteLabel {
   fontUrl?: string;
   borderRadius?: string;
   logo?: string;
+  /** The logo for dark mode (an `https:` URL or a base64 image). The light `logo` is used when this is absent. */
+  logoDark?: string;
+  /** Dark mode with no `logoDark`: show `logo` on a small light plate, for a logo drawn for light pages. */
+  logoPlate?: boolean;
   hideLogo?: boolean;
   hideConfetti?: boolean;
   tokens?: Record<string, string>;
@@ -175,6 +180,22 @@ export interface OpenConfig {
    * and the connection still finishes on its own once the records appear.
    */
   getToken?: () => string | Promise<string>;
+  /**
+   * "remove" opens the removal flow for a connected domain instead of the
+   * connect flow (removeDomain() sets it): the widget shows the DNS records
+   * that were added, asks whether to remove or keep them, asks the user to
+   * sign in once more when the access used to connect was not kept, and
+   * reports what happened in `customdomain:removed`.
+   */
+  mode?: "connect" | "remove";
+  /**
+   * The connection to remove, when you kept its id; otherwise the prefilled
+   * domain is looked up. Either way the token must be minted for that domain
+   * and end user.
+   */
+  connectionId?: string;
+  /** Called when the removal finished (also the `customdomain:removed` event). */
+  onRemoved?: (result: RemovedResult) => void;
   /** Callbacks (in addition to the window CustomEvents). */
   onSuccess?: (result: SuccessResult) => void;
   onClose?: (detail: CloseDetail) => void;
@@ -187,6 +208,23 @@ export interface OpenConfig {
    * provider_unsupported, unknown_provider).
    */
   onFallback?: (detail: FallbackDetail) => void;
+}
+
+/** Detail of a `customdomain:removed` event: what happened to the domain's DNS records. */
+export interface RemovedResult {
+  domain: string;
+  connectionId?: string;
+  /**
+   * removed (every record we added is gone), partly_removed, kept (the user
+   * kept them), manual (the user deletes them; the widget listed how),
+   * in_use (another application still serves the domain), not_needed.
+   */
+  records: string;
+  removed: Array<{ type: string; name: string; value: string }>;
+  restored: Array<{ type: string; name: string; value: string }>;
+  leftInPlace: Array<{ type: string; name: string; value: string }>;
+  /** Integrator-supplied end-user id (OpenConfig.userId), echoed back. */
+  user?: string;
 }
 
 /** Detail of a `customdomain:fallback` event. */
@@ -381,6 +419,7 @@ const EVT = {
   purchase: "customdomain:purchase",
   error: "customdomain:error",
   fallback: "customdomain:fallback",
+  removed: "customdomain:removed",
 } as const;
 
 function dispatch(name: string, detail: unknown) {
@@ -616,6 +655,12 @@ export class CustomDomain {
           config.onFallback?.(payload as FallbackDetail);
           dispatch(EVT.fallback, payload);
           break;
+        case "customdomain:removed":
+          // The removal finished: the widget stays up on its summary (with
+          // any records left for the user to delete) until the user closes it.
+          config.onRemoved?.(payload as RemovedResult);
+          dispatch(EVT.removed, payload);
+          break;
         case "customdomain:token-expired": {
           // The widget's token expired mid-setup. Ask the integrator for a
           // fresh one; answer with null when there is none so the widget moves
@@ -650,6 +695,18 @@ export class CustomDomain {
   /** Sell: open the in-widget domain purchase flow. */
   purchaseDomain(config: OpenConfig): { close: () => void } {
     return this.open({ ...(config as OpenConfig), purchase: true } as OpenConfig);
+  }
+
+  /**
+   * Open the removal flow for a connected domain: pass `connectionId`, or the
+   * domain as `prefilledDomain`. Mint the token for that domain and end user
+   * (POST /v1/tokens with `domain` and `end_user_ref`): an end user's token
+   * bound to neither cannot remove it. The widget asks whether to remove or
+   * keep the DNS records that were added, and reports the outcome in
+   * onRemoved / `customdomain:removed`.
+   */
+  removeDomain(config: OpenConfig): { close: () => void } {
+    return this.open({ ...config, mode: "remove" });
   }
 
   /** Open a shared/delegated setup link in the modal (incumbent loadSharedFlow). */
@@ -772,6 +829,8 @@ function buildInitPayload(
       wwwRedirect: config.wwwRedirect,
       canRefreshToken: typeof config.getToken === "function",
       purchase: (config as { purchase?: boolean }).purchase,
+      mode: config.mode,
+      connectionId: config.connectionId,
     },
   };
 }

@@ -98,6 +98,7 @@ Each maps to a native `customdomain:*` window event:
 | `onRequestClose` | `customdomain:request-close` | event detail |
 | `onShared` | `customdomain:shared` | event detail |
 | `onPurchase` | `customdomain:purchase` | `PurchaseInitiated` |
+| `onRemoved` | `customdomain:removed` | `RemovedResult` |
 
 Every other prop is passed straight to the SDK's `OpenConfig`, including `domain`, `whiteLabel`,
 `locale`, `container`, `forceManualSetup`, `endUserRef`, and these:
@@ -133,6 +134,34 @@ const { purchaseDomain, ready } = useCustomdomain({
 ```
 
 `<CustomdomainConnect>` is the connect flow only; use the hook to sell.
+
+## Removing a domain
+
+`removeDomain()` opens the widget on the removal flow for a connected domain, the way
+`purchaseDomain()` opens the buy screen: `open()` always starts the connect flow. Pass the
+`connectionId` you kept in the hook options (or as an override), or the domain as `domain` /
+`prefilledDomain`. Mint the token for that domain and end user, with `POST /v1/tokens`.
+
+The widget shows the DNS records that were added, asks whether to remove or keep them, and
+reports what happened to `onRemoved` (`RemovedResult`): `records` is `removed`, `partly_removed`,
+`kept`, `manual`, `in_use` or `not_needed`, with the `removed`, `restored` and `leftInPlace`
+record lists. The widget stays up on its summary until the user closes it.
+
+```tsx
+const { removeDomain, ready } = useCustomdomain({
+  applicationId: "app_123",
+  token, // minted for this domain and end user
+  onRemoved: ({ domain, records }) => console.log(domain, records),
+});
+
+<button disabled={!ready} onClick={() => removeDomain({ connectionId })}>Remove domain</button>;
+```
+
+## White-label logos
+
+`whiteLabel.logoDark` is a separate logo for dark mode, and `whiteLabel.logoPlate` shows the light
+`logo` on a small light plate in dark mode when you have no `logoDark`. Both are part of the
+`WhiteLabel` type.
 
 ## Support
 
