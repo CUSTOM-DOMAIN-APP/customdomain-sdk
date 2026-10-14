@@ -32,6 +32,8 @@
 #   1. dist-tags — `latest` on the live registry equals the version under test.
 #      Polled with backoff: npm's CDN is eventually consistent and a publish is
 #      not instantly visible, so a single early curl would produce a false alarm.
+#      The packument (the version's tarball URL) is polled the same way: it is
+#      cached apart from dist-tags and can lag them.
 #   2. the tarball IS the source — download what npm serves for that exact
 #      version and diff its `src/` against this repo's `packages/*/src`. This is
 #      the step that was skipped. `src/` (not just index.ts) because
@@ -139,10 +141,23 @@ for entry in "${PACKAGES[@]}"; do
 	printf '  OK    %s — dist-tag latest = %s\n' "$pkg" "$VERSION"
 
 	# ---- 2. the tarball IS the source ----
-	if ! curl -sS --fail --max-time "$CURL_TIMEOUT" "$REGISTRY/$enc" -o "$TMP/pk.json" 2>"$TMP/err"; then
-		die2 "could not read the packument for $pkg: $(tr -d '\n' <"$TMP/err")"
-	fi
-	tarball="$(jq -r --arg v "$VERSION" '.versions[$v].dist.tarball // empty' "$TMP/pk.json")"
+	# The packument (the full metadata document) is cached apart from dist-tags, and it can still lack the
+	# new version after dist-tags shows it. The 0.5.2 release hit exactly that: @customdomain/react's
+	# dist-tag was current on the first read and its packument had no 0.5.2 tarball yet, so the run
+	# failed on a publish that had landed. Poll it the same way as dist-tags.
+	tarball=""
+	for i in $(seq 1 "$tries"); do
+		if ! curl -sS --fail --max-time "$CURL_TIMEOUT" "$REGISTRY/$enc" -o "$TMP/pk.json" 2>"$TMP/err"; then
+			die2 "could not read the packument for $pkg: $(tr -d '\n' <"$TMP/err")"
+		fi
+		tarball="$(jq -r --arg v "$VERSION" '.versions[$v].dist.tarball // empty' "$TMP/pk.json")"
+		[ -n "$tarball" ] && break
+		if [ "$i" -lt "$tries" ]; then
+			printf '  ... %s packument has no %s tarball yet, waiting (attempt %s/%s)\n' \
+				"$pkg" "$VERSION" "$i" "$tries"
+			sleep "$SLEEP_SECS"
+		fi
+	done
 	[ -n "$tarball" ] || {
 		FAILURES+=("$pkg@$VERSION has no tarball in the packument")
 		printf '  FAIL  %s@%s — no tarball published\n' "$pkg" "$VERSION"
