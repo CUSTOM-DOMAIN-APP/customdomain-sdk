@@ -37,6 +37,21 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [Unreleased]
+
+`packages/sdk/src/index.ts` is byte identical to the product monorepo's at `7496a97`
+([CUSTOM-DOMAIN-APP/custom-domains#264](https://github.com/CUSTOM-DOMAIN-APP/custom-domains/pull/264)).
+No type changed.
+
+### Changed
+
+- **`customdomain-js`**: `open()` warns once in the browser console when `dnsRecords` holds records other
+  than DKIM ones. Those records were always ignored, silently: the records a customer is shown and checked
+  against come from the server (the application's connect target, or `PUT /v1/connections/{id}/records`).
+- **`customdomain-js`**: the `dnsRecords` documentation says only DKIM records are used, and its root
+  domain note is corrected: a Route 53 alias can only target AWS resources (it cannot take your hostname at a
+  root), and Namecheap does have ALIAS. Give the connect target `apex_ipv4` for providers with neither.
+
 ## [0.5.2] (2026-10-09)
 
 `packages/sdk/src/index.ts` is byte identical to the product monorepo's at `a5e00d8f`, which
