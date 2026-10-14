@@ -337,7 +337,11 @@ export interface CheckDomainResult {
   spfOverrideSupport?: boolean;
   caaSupport?: boolean;
   supportsSocialLogin?: string;
+  /** Existing records the automatic write would replace. */
   recordConflicts?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
+  /** Non-destructive advisories (CAA blocking Let's Encrypt, SPF to merge). Never counted
+   * toward the automatic to manual fallback; render as authorize or merge. */
+  advisories?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
   /**
    * P6.4 · F10 — the rest of the pre-flight the control plane already returns
    * (connect.go:458-466). `recordConflicts` alone is not actionable without
@@ -554,6 +558,7 @@ export class CustomDomain {
       caaSupport: r.caa_support,
       supportsSocialLogin: r.supports_social_login,
       recordConflicts: r.record_conflicts,
+      advisories: r.advisories,
       conflictTolerance: r.conflict_tolerance,
       willFallbackToManual: r.will_fallback_to_manual,
       apexSupported: r.apex_supported,
