@@ -37,7 +37,7 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
-## [Unreleased]
+## [0.5.3] (2026-10-14)
 
 `packages/sdk/src/index.ts` is byte identical to the product monorepo's at `7496a97`
 ([CUSTOM-DOMAIN-APP/custom-domains#264](https://github.com/CUSTOM-DOMAIN-APP/custom-domains/pull/264)).
@@ -308,6 +308,7 @@ Breaking for TypeScript consumers who referenced them (both were type level only
 already at version 0.1.0. Version 0.1.0 was never published to npm, and there is no usable history
 before that point, so no 0.1.0 entry is reconstructed here.
 
+[0.5.3]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.4.1...v0.5.0
