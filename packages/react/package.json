@@ -1,6 +1,6 @@
 {
   "name": "@customdomain/react",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "React bindings for customdomain-js, the CustomDomain\u2122 SDK: add one-click custom domain setup to your React app with a hook or a component.",
   "license": "Apache-2.0",
   "repository": {
@@ -17,21 +17,33 @@
     "provenance": true
   },
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
   },
   "files": [
     "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && esbuild src/index.tsx --bundle --packages=external --format=esm --platform=neutral --jsx=automatic --sourcemap --outfile=dist/index.js && esbuild src/index.tsx --bundle --packages=external --format=cjs --platform=neutral --jsx=automatic --sourcemap --outfile=dist/index.cjs && cp dist/index.d.ts dist/index.d.cts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
@@ -46,7 +58,8 @@
     "react": "^19",
     "react-dom": "^19",
     "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "@types/react-dom": "^19",
+    "esbuild": "0.28.1"
   },
   "keywords": [
     "react",

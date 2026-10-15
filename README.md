@@ -2,7 +2,7 @@
 
 The browser SDK that lets your SaaS users connect their own domain.
 
-**Status:** Maintained · v0.5.3 · TypeScript · published to npm with provenance
+**Status:** Maintained · v0.5.4 · TypeScript · published to npm with provenance
 
 [![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
@@ -18,7 +18,7 @@ The browser SDK that lets your SaaS users connect their own domain.
 | **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
 | **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
 | **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
-| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.3** on npm · every pull request builds the real bundle and drives it through headless Chromium |
+| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.4** on npm · every pull request builds the real bundle and drives it through headless Chromium |
 
 This repository is the client half of [CustomDomain™](https://customdomain.ai): two npm packages
 your application installs, plus the widget they open. Your app calls one function; the user pastes
@@ -84,7 +84,7 @@ curl -s https://api.customdomain.ai/v1/providers/census | head -c 200
 - **Detects the provider and writes the records.** One-click authorization, a scoped provider API token, or [Domain Connect](https://www.domainconnect.org), with a guided manual path as the fallback.
 - **Verifies ownership without a separate challenge step.** Control is proven by the rail that writes the DNS, or by the records appearing in authoritative DNS.
 - **Handles root domains.** `wwwRedirect` connects the root and `www` and redirects the root, connects the root alone, or lets the user choose.
-- **Streams progress to your app.** `customdomain:success`, `:step`, `:close`, `:error`, `:fallback`, `:purchase` and `:shared` events, plus `checkDomain()` and `checkRecords()` if you want to drive your own UI.
+- **Streams progress to your app.** `customdomain:success`, `:step`, `:close`, `:error`, `:fallback`, `:purchase`, `:removed` and `:shared` events, plus `checkDomain()` and `checkRecords()` if you want to drive your own UI.
 - **White-labels.** Colors, fonts, copy, locale and logo, so the flow reads as part of your product.
 
 ## How it's organized

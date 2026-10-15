@@ -1,6 +1,6 @@
 {
   "name": "customdomain-js",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "CustomDomain\u2122 SDK: let your users connect their own domain in one click, with DNS records written, ownership verified and TLS issued for them.",
   "license": "Apache-2.0",
   "repository": {
@@ -17,14 +17,32 @@
     "provenance": true
   },
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "files": [
     "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js",
+    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && esbuild src/index.ts --bundle --format=esm --platform=browser --sourcemap --outfile=dist/index.js && esbuild src/index.ts --bundle --format=cjs --platform=browser --sourcemap --outfile=dist/index.cjs && cp dist/index.d.ts dist/index.d.cts && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

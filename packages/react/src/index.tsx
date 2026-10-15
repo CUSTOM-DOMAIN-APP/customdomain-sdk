@@ -37,7 +37,11 @@ export type {
   CloseDetail,
   PurchaseInitiated,
   RemovedResult,
+  FallbackDetail,
   CheckDomainResult,
+  RailInfo,
+  IntegrationWarning,
+  ManagedDnsAvailability,
   CheckRecordsResult,
 } from "customdomain-js";
 export { CustomDomain, CustomDomainError } from "customdomain-js";

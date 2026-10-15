@@ -27,6 +27,11 @@ npm install customdomain-js
 # React apps: npm install @customdomain/react
 ```
 
+The package ships an ES module build and a CommonJS build, each with type declarations and
+source maps, so `import` and `require` both resolve with types. It runs in browsers; importing it
+on a server needs Node 18 or newer and only creates the `customdomain` instance (nothing touches
+`document` until you call `open()`).
+
 ## Quickstart
 
 Mint a short-lived widget token on your server with `POST /v1/tokens` (never ship an API key to
@@ -61,12 +66,12 @@ script exposes the same instance as `window.customdomain`.
 | Method | Purpose |
 |---|---|
 | `open(config)` | Open the connect widget. Returns `{ close }`. |
-| `checkDomain(domain, { token })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. |
-| `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. |
+| `checkDomain(domain, { token, dnsRecords? })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. Pass `dnsRecords` to check conflicts against the records you intend to write. Every field is listed under [Pre-flight with `checkDomain`](#pre-flight-with-checkdomain). Throws a `CustomDomainError` with `status` set, see [Errors and retries](#errors-and-retries). |
+| `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. Resolves to `{ domain, inSync, records }`, one entry per record with the values observed. Throws like `checkDomain`. |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
 | `removeDomain(config)` | Open the widget on the removal flow for a connected domain. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`. Returns `{ close }`. See [Removing a domain](#removing-a-domain). |
 | `loadSharedFlow(url, config?)` | Resume a shared "finish setup" link with your branding. |
-| `load()` | Resolves when the SDK is ready, for parity with the hosted loader. |
+| `load()` | Resolves at once: the npm build is ready as soon as it is imported. It exists so code written for the hosted loader (`await customdomain.load()`) runs unchanged. It does not open anything; `open()` does. |
 | `close()` | Close the widget. |
 
 ## Options
@@ -85,7 +90,7 @@ The ones most integrations use. The full list is in the
 | `whiteLabel` | `WhiteLabel` | Colors, fonts, logo, copy, icons and dark mode, so the flow reads as your product. |
 | `locale` | `string` | UI language. |
 | `endUserRef` | `string` | Your id for this customer. Stored on the connection and shown in the console. |
-| `container` | `string` | CSS selector to render inside your page instead of as a modal. |
+| `container` | `string` | Embedded mode: CSS selector of an element on your page to render inside, as a flat panel, instead of the fullscreen modal. The element must be positioned (the widget fills it with `position: absolute; inset: 0`), and `whiteLabel.embedded` is set for you. `open()` throws when nothing matches the selector. |
 | `connectionId` | `string` | `removeDomain()` only: the connection to remove, when you kept its id. Otherwise the prefilled domain is looked up. |
 | `onSuccess`, `onClose`, `onStepChange`, `onError`, `onFallback`, `onRemoved` | functions | Callbacks, delivered in addition to the window events below. |
 
@@ -160,18 +165,83 @@ customdomain.removeDomain({
 
 ## Pre-flight with `checkDomain`
 
-`checkDomain` tells you what will happen before a user starts. Besides the provider and the
-record conflicts, it returns:
+`checkDomain` tells you what will happen before a user starts, without opening the widget. It
+calls `POST /v1/domains:check` and maps every field of the answer to camelCase. Pass the records
+you intend to write as `dnsRecords` (the same shape as `open({ dnsRecords })`) and the conflict
+detection, the `willFallbackToManual` prediction and `integrationWarnings` run against that set
+instead of the default edge record.
 
-- `rails`: for each connection rail (`oauth`, `domainConnect`, `apiKey`, `manual`), whether it can
-  run for this domain right now, and why not when it cannot.
-- `recommendedRail` and `endUserAutomatic`: the rail the widget will pick, and whether it needs
-  nothing typed by the end user.
-- `blockedReason`: set when no rail can connect the domain (`unregistered`, `platform_subdomain`).
-- `dashboardUrl` and `nameservers`: a deep link into the provider's DNS panel, and the observed
-  nameserver delegation.
-- `subdomain`, `registrableDomain`, `publicSuffix`: the authoritative Public Suffix List split.
-  `subdomain` is `""` when the domain is the registrable root, so test it with `=== ""`.
+```ts
+const check = await customdomain.checkDomain("acme.com", { token, dnsRecords });
+if (check.blockedReason) showCannotConnect(check.blockedReason);
+else if (!check.endUserAutomatic) warnManualSteps(check.recommendedRail);
+```
+
+Every field of `CheckDomainResult`. Optional fields are absent when the server did not compute them.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `domain` | `string` | The domain that was checked. |
+| `provider` | `string \| null` | Detected DNS provider slug, or `null` when unknown. |
+| `setupType` | `SetupType` | The flow the widget would run: `automatic`, `semiautomatic`, `sharedLogin`, `manual` or `purchase`. |
+| `supportsAutomatic` | `boolean` | An adapter exists for the provider. It does not say the adapter can run for this domain; read `rails` for that. |
+| `oauthAvailable` | `boolean` | The provider has a sign-in rail. |
+| `domainConnect` | `boolean` | The provider serves Domain Connect for this domain. |
+| `subdomain`, `registrableDomain`, `publicSuffix` | `string` | The authoritative Public Suffix List split. `subdomain` is `""` when the domain is the registrable root, so test it with `=== ""`. |
+| `registered` | `boolean` | Whether the registrable domain is registered. |
+| `authoritativeDnsProvider` | `string` | The provider serving the zone's authoritative DNS, when it differs from the registrar. |
+| `NSSupport` | `{ root?, subdomains? }` | Whether nameserver delegation is possible at the root and for subdomains. |
+| `wildcardSupport`, `cnameFlattening`, `spfOverrideSupport`, `caaSupport` | `boolean` | Provider capabilities. |
+| `supportsSocialLogin` | `string` | `yes` when the provider's rail signs the user in, `no` when it does not, `n-a` when unknown. |
+| `recordConflicts` | `Array<{ kind, host, type, existing, desired }>` | Existing records that clash with the ones to be written. A `caa-blocks-letsencrypt` conflict is a certificate advisory, not a DNS write clash, and does not count towards the tolerance. |
+| `conflictTolerance` | `number` | How many conflicts the provider's automatic rail tolerates before it stops writing. |
+| `willFallbackToManual` | `boolean` | The server's prediction that the one-click rail would quietly become a manual record list for this domain. |
+| `apexSupported` | `boolean` | Provider fact: it can host a CNAME-like record at the zone root. |
+| `apexMessage` | `string` | This-domain verdict, non-empty exactly when the apply would refuse the record set. Gate warnings on this, not on `apexSupported`. |
+| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. `cloudBrowser` is present only when that rail is switched on for your application. |
+| `recommendedRail` | `"oauth" \| "domain_connect" \| "api_key" \| "manual"` | The rail the widget will pick. |
+| `endUserAutomatic` | `boolean` | True when the recommended rail needs nothing typed by the end user. |
+| `blockedReason` | `"unregistered" \| "platform_subdomain"` | Set when no rail can connect the domain at all. |
+| `dashboardUrl` | `string` | Best-effort deep link into the provider's DNS panel for this zone. |
+| `nameservers` | `string[]` | The nameserver delegation the detector observed. |
+| `detectionError` | `"nxdomain" \| "resolver"` | Why provider detection could not finish. `resolver` is transient: check again. |
+| `targetMode` | `"edge" \| "custom"` | Where traffic lands: the shared edge, or the custom target your application set. |
+| `apexStrategy` | `"alias" \| "a_records" \| "unsupported"` | How a root domain would be pointed at the target. |
+| `apexRecordType`, `apexTargets` | `string`, `string[]` | The record type and values that strategy writes. |
+| `integrationWarnings` | `IntegrationWarning[]` | Only when you passed `dnsRecords`: records in that set the provider cannot write as given, each `{ code, message }`. The code today is `supplied_apex_unrealizable`. |
+| `managedDns` | `ManagedDnsAvailability \| null` | Whether CustomDomain™ can host the zone itself (managed DNS), with a `reason` when it cannot. |
+| `sandbox` | `boolean` | True when the token belongs to a test mode application. |
+
+The exported types `CheckDomainResult`, `RailInfo`, `IntegrationWarning` and
+`ManagedDnsAvailability` describe this shape, and `@customdomain/react` re-exports them.
+
+## Errors and retries
+
+`checkDomain` and `checkRecords` throw a `CustomDomainError` when the control plane answers with
+an error, and `onError` receives one when the widget reports an error. The class carries `code`,
+`message`, `details?` and `status?`.
+
+- `status` is the HTTP status of the response the error came from. It is unset on errors raised
+  by the widget (`onError`) or by the SDK itself, such as a `container` that matches nothing.
+- Safe to retry: a `status` of 429 or any 5xx. Wait a moment and send the same call again. A
+  network failure never becomes a `CustomDomainError`: `fetch` rejects with a plain `TypeError`,
+  which is also safe to retry.
+- Not safe to retry as is: any other 4xx. The same request gets the same answer until something
+  changes: the token (expired, or minted for another application), the domain, or the records.
+- A successful `checkDomain` with `detectionError: "resolver"` is transient too: the DNS lookup
+  failed, so check again before telling the user anything.
+
+```ts
+import { customdomain, CustomDomainError } from "customdomain-js";
+
+try {
+  await customdomain.checkDomain("acme.com", { token });
+} catch (err) {
+  const transient = err instanceof CustomDomainError ? err.status === 429 || (err.status ?? 0) >= 500 : err instanceof TypeError;
+  if (transient) scheduleRetry();
+  else showError(err);
+}
+```
 
 ## Migrating from Entri
 

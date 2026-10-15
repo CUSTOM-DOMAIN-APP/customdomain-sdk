@@ -37,6 +37,49 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [0.5.4] (2026-10-15)
+
+`packages/sdk/src/index.ts` and `packages/react/src/index.tsx` are byte identical to the product
+monorepo's (mirror pull request: CUSTOM-DOMAIN-APP/custom-domains#284). Everything here is additive: no type
+was removed or narrowed, and the hosted bundle (`dist/customdomain-sdk.js`) is still built with the
+same command.
+
+### Added
+
+- **`customdomain-js`**: `checkDomain` maps every field `POST /v1/domains:check` returns. New on
+  `CheckDomainResult`: `detectionError`, `targetMode`, `apexStrategy`, `apexRecordType`,
+  `apexTargets`, `integrationWarnings`, `managedDns`, `sandbox` and `rails.cloudBrowser`. New
+  exported types `IntegrationWarning` and `ManagedDnsAvailability`.
+- **`customdomain-js`**: `checkDomain(domain, { token, dnsRecords })` sends the records you intend
+  to write, so conflict detection and `willFallbackToManual` run against them and
+  `integrationWarnings` can come back. Without `dnsRecords` the request is unchanged.
+- **`customdomain-js`**: `CustomDomainError.status`, the HTTP status of the control plane response
+  an error came from (unset for errors raised by the widget or the SDK). The README's "Errors and
+  retries" section says which errors are safe to retry.
+- **`@customdomain/react`**: re-exports `FallbackDetail`, `RailInfo`, `IntegrationWarning` and
+  `ManagedDnsAvailability`.
+- **Both packages**: a CommonJS build (`dist/index.cjs` with `dist/index.d.cts`) next to the ESM
+  one, an `exports` map that resolves types for `import` and `require`, `engines.node >= 18`, and
+  source maps for the JavaScript and the declarations. `@customdomain/react` declares
+  `sideEffects: false`. `customdomain-js` does not, because importing it creates the shared
+  `customdomain` instance, assigns `window.customdomain` and installs the `window.entri` shim.
+
+### Fixed
+
+- **`customdomain-js`**: the ES module entry (`dist/index.js`) imported `./compat` without a file
+  extension, so Node could not load the package without a bundler (server rendering, tests). Both
+  packages now ship their ESM and CommonJS entries as single bundled files; `tsc` emits only the
+  declarations. The exports map also keeps `customdomain-js/dist/*` reachable for anyone who
+  loads the hosted bundle file from `node_modules`.
+
+### Changed
+
+- **`customdomain-js`** README: `checkDomain` and `checkRecords` rows name what they throw and
+  resolve to, `load()` says it resolves at once and opens nothing, `container` says it renders a
+  flat panel inside a positioned element and implies `whiteLabel.embedded`, and the pre-flight
+  section lists every `CheckDomainResult` field.
+- **`@customdomain/react`** README lists every re-exported type.
+
 ## [0.5.3] (2026-10-14)
 
 `packages/sdk/src/index.ts` is byte identical to the product monorepo's at `7496a97`

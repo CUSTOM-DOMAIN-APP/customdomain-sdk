@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "lib": ["ES2020", "DOM"],
     "declaration": true,
+    "declarationMap": true,
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,

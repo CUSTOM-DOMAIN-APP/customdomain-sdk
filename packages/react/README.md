@@ -27,6 +27,10 @@ npm install @customdomain/react customdomain-js react react-dom
 `react` and `react-dom` are peer dependencies. `customdomain-js` is a direct dependency, pinned to
 the release published alongside this package, and loads automatically when you import it.
 
+The package ships an ES module build and a CommonJS build, each with type declarations and
+source maps, so `import` and `require` both resolve with types. It needs Node 18 or newer for
+server rendering and declares `sideEffects: false`, so bundlers can tree shake it.
+
 ## Usage
 
 Mint a short-lived widget token on your server with `POST /v1/tokens`, pass it to the client,
@@ -108,9 +112,13 @@ Every other prop is passed straight to the SDK's `OpenConfig`, including `domain
 | `getToken` | Returns a fresh widget token when the current one expires in the middle of a setup, so long manual setups never stop. |
 | `wwwRedirect` | Root domains only: `true` connects the root and `www` and redirects the root to `www`; `false` connects the root alone; unset lets the user choose. |
 | `onError` | Receives a `CustomDomainError` when the widget shows an error (also dispatched as `customdomain:error`). |
-| `onFallback` | Receives `{ reason, provider?, screen?, message? }` when the widget sends the user to copy records by hand (also dispatched as `customdomain:fallback`). |
+| `onFallback` | Receives a `FallbackDetail` (`{ reason, provider?, screen?, message? }`) when the widget sends the user to copy records by hand (also dispatched as `customdomain:fallback`). |
 
-Types are re-exported from `customdomain-js`, so your editor autocompletes every option.
+Every public type is re-exported from `customdomain-js`, so your editor autocompletes every option:
+`OpenConfig`, `WhiteLabel`, `DNSRecord`, `DNSRecordType`, `SetupType`, `SuccessResult`, `StepDetail`,
+`CloseDetail`, `FallbackDetail`, `PurchaseInitiated`, `RemovedResult`, `CheckDomainResult`, `RailInfo`,
+`IntegrationWarning`, `ManagedDnsAvailability` and `CheckRecordsResult`, plus the `CustomDomain` class
+and `CustomDomainError`.
 
 ## Selling domains
 
