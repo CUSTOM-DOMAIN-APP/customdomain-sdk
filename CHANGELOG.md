@@ -40,7 +40,7 @@ missing, the workflow falls back to notes generated from commits and pull reques
 ## [0.5.4] (2026-10-15)
 
 `packages/sdk/src/index.ts` and `packages/react/src/index.tsx` are byte identical to the product
-monorepo's (mirror pull request noted below once it exists). Everything here is additive: no type
+monorepo's (mirror pull request: CUSTOM-DOMAIN-APP/custom-domains#284). Everything here is additive: no type
 was removed or narrowed, and the hosted bundle (`dist/customdomain-sdk.js`) is still built with the
 same command.
 
