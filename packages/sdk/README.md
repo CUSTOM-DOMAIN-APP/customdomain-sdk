@@ -81,7 +81,7 @@ The ones most integrations use. The full list is in the
 | `getToken` | `() => string \| Promise<string>` | Returns a fresh widget token. Widget tokens last about 15 minutes, and a user adding DNS records by hand often takes longer. With `getToken` the widget refreshes silently instead of stopping; without it, the widget tells the user they can close the window, and the connection still finishes on its own once the records appear. |
 | `wwwRedirect` | `boolean` | Root domains only. `true` connects the root and `www` and redirects the root to `www`; `false` connects the root alone; leave it unset to let the user choose. |
 | `domain` / `prefilledDomain` | `string` / `string \| string[]` | Pre-fill the domain. An array runs a multi-domain flow. |
-| `dnsRecords` | `DNSRecord[] \| Record<string, DNSRecord[]>` | Records to apply. Omit it to use the authoritative record set for the connection. |
+| `dnsRecords` | `DNSRecord[] \| Record<string, DNSRecord[]>` | Only DKIM records are used (`purpose: "dkim"`, or a host under `_domainkey`); any other record is ignored, and `open()` says so once in the console. The records a customer is shown come from the server: set where domains point with `PUT /v1/applications/{id}/connect-target`, or one connection's records with `PUT /v1/connections/{id}/records`. |
 | `whiteLabel` | `WhiteLabel` | Colors, fonts, logo, copy, icons and dark mode, so the flow reads as your product. |
 | `locale` | `string` | UI language. |
 | `endUserRef` | `string` | Your id for this customer. Stored on the connection and shown in the console. |

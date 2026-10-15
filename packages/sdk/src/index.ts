@@ -95,22 +95,32 @@ export interface OpenConfig {
   domain?: string;
   prefilledDomain?: string | string[];
   /**
-   * DNS records the platform needs applied. Array mode, or incumbent's per-domain
-   * object mode {"acme.com": [records]}. Optional: the control-plane's
-   * authoritative per-connection record set is preferred when omitted.
+   * DKIM records for the widget's DKIM screen. Array mode, or incumbent's
+   * per-domain object mode {"acme.com": [records]}.
+   *
+   * ONLY DKIM RECORDS ARE USED (a `purpose: "dkim"` record, or a host under
+   * `_domainkey`). Every other record is ignored, and the SDK says so once in
+   * the console: the records a customer is shown and checked against come from
+   * the server. Set where customer domains point on the console's Domain
+   * routing page (or `PUT /v1/applications/{id}/connect-target`), or supply one
+   * connection's records from your backend with
+   * `PUT /v1/connections/{id}/records`.
    *
    * ROOT DOMAINS. A CNAME is illegal at a zone apex (RFC 1034 §3.6.2), and most
    * of your users will type `acme.com`, not `www.acme.com`. What happens depends
    * on their DNS provider:
    *
-   *   - Cloudflare, Route 53, DNSimple and other flattening providers accept
-   *     your hostname at the root unchanged. Nothing to do.
-   *   - GoDaddy and Namecheap have no ALIAS/ANAME/flattening type at all. A
-   *     hostname CANNOT be placed at a root there, so those users cannot
-   *     complete the connection with a CNAME-only record set.
+   *   - Cloudflare (flattening) and Namecheap, DNSimple, Porkbun and Vercel
+   *     (ALIAS) accept your hostname at the root. Nothing to do.
+   *   - GoDaddy has no ALIAS/ANAME/flattening type at all, and a Route 53 alias
+   *     can only target AWS resources. A hostname CANNOT be placed at a root
+   *     there, so those users cannot complete the connection with a CNAME-only
+   *     record set.
    *
-   * Supply A records with your own addresses for the apex, steer those users to
-   * a subdomain, or route the apex through the reverse-proxy edge.
+   * Give your connect target `apex_ipv4` addresses (PUT
+   * /v1/applications/{id}/connect-target) and root domains at those providers
+   * get A records to them; or steer those users to a subdomain, or route the
+   * apex through the CustomDomain™ edge.
    *
    * `POST /v1/domains:check` returns `integration_warnings` with code
    * `supplied_apex_unrealizable` when this applies — check it during
@@ -579,6 +589,7 @@ export class CustomDomain {
     const first = Array.isArray(config.prefilledDomain) ? config.prefilledDomain[0] : config.prefilledDomain;
     const domain = config.domain || first;
     const records = resolveRecords(config.dnsRecords, domain);
+    warnIgnoredRecords(records);
 
     const handler = (e: MessageEvent) => {
       if (new URL(widgetBase).origin !== e.origin) return; // origin-checked
@@ -833,6 +844,34 @@ function buildInitPayload(
       connectionId: config.connectionId,
     },
   };
+}
+
+/** True for a record the widget's DKIM screen uses; the widget's own test. */
+function isDkimRecord(r: DNSRecord): boolean {
+  return r.purpose === "dkim" || /(^|\.)_domainkey(\.|$)/.test(r.host || "");
+}
+
+let warnedIgnoredRecords = false;
+
+/**
+ * Says once, in the console, that `dnsRecords` other than DKIM are ignored.
+ * Builders passed A and CNAME records here expecting their customers to get
+ * them; the customers got the application's routing instead, with nothing to
+ * say why.
+ */
+function warnIgnoredRecords(records: DNSRecord[] | undefined): void {
+  if (warnedIgnoredRecords || !records) return;
+  const ignored = records.filter((r) => !isDkimRecord(r));
+  if (ignored.length === 0) return;
+  warnedIgnoredRecords = true;
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(
+      `customdomain-js: ${ignored.length} of the dnsRecords passed to open() ${ignored.length === 1 ? "is" : "are"} ignored: ` +
+        "only DKIM records are used. Customers are shown the records of your application's routing; set it on the " +
+        "Domain routing page (PUT /v1/applications/{id}/connect-target), or supply a connection's records from your " +
+        "backend with PUT /v1/connections/{id}/records. https://docs.customdomain.ai/docs/connect-flow/routing"
+    );
+  }
 }
 
 /** incumbent dnsRecords object mode: {"acme.com": [records]} → the domain's set. */
