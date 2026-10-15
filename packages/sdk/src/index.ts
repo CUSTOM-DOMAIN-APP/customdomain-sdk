@@ -372,6 +372,8 @@ export interface CheckDomainResult {
     domainConnect: RailInfo;
     apiKey: RailInfo;
     manual: RailInfo;
+    /** Only present when the application has the cloud browser rail switched on. */
+    cloudBrowser?: RailInfo;
   };
   recommendedRail?: "oauth" | "domain_connect" | "api_key" | "manual";
   endUserAutomatic?: boolean;
@@ -380,6 +382,33 @@ export interface CheckDomainResult {
   dashboardUrl?: string;
   /** The nameserver delegation the detector observed. */
   nameservers?: string[];
+  /**
+   * Why provider detection could not finish: `nxdomain` when the name does
+   * not resolve at all, `resolver` when the lookup itself failed. A `resolver`
+   * result is transient; the same check can be retried.
+   */
+  detectionError?: "nxdomain" | "resolver";
+  /** Where traffic lands: the shared edge, or a custom target the application set. */
+  targetMode?: "edge" | "custom";
+  /**
+   * How an apex (root) domain would be pointed at the target: `alias` when
+   * the provider flattens CNAMEs, `a_records` when static addresses are
+   * written, `unsupported` when the apex cannot be connected automatically.
+   */
+  apexStrategy?: "alias" | "a_records" | "unsupported";
+  /** Record type the apex strategy writes (`CNAME`, `ALIAS`, `ANAME`, `A`). */
+  apexRecordType?: string;
+  /** Record values the apex strategy writes (one hostname, or the A addresses). */
+  apexTargets?: string[];
+  /**
+   * Set only when `dnsRecords` were supplied to `checkDomain`: each warning
+   * names a record in that set the provider cannot write as given.
+   */
+  integrationWarnings?: IntegrationWarning[];
+  /** Whether CustomDomain™ can host the zone itself (managed DNS) and why not when it cannot. */
+  managedDns?: ManagedDnsAvailability | null;
+  /** True when the token belongs to a test mode application. */
+  sandbox?: boolean;
 }
 
 /** One rail's availability on checkDomain. */
@@ -391,6 +420,21 @@ export interface RailInfo {
   caveat?: string;
 }
 
+/** One warning about a record in the `dnsRecords` set passed to checkDomain. */
+export interface IntegrationWarning {
+  /** Machine code, for example `supplied_apex_unrealizable`. */
+  code: string;
+  /** Human readable explanation, safe to show to the end user. */
+  message: string;
+}
+
+/** Whether the managed DNS rail (CustomDomain™ hosting the zone) can take this domain. */
+export interface ManagedDnsAvailability {
+  available: boolean;
+  /** Machine reason, present exactly when `available` is false. */
+  reason?: string;
+}
+
 /** checkRecords: per-record propagation state of a desired record set. */
 export interface CheckRecordsResult {
   domain: string;
@@ -398,13 +442,28 @@ export interface CheckRecordsResult {
   records: Array<{ host: string; type: string; ok: boolean; observed: string[] }>;
 }
 
+/**
+ * Thrown by `checkDomain` and `checkRecords`, passed to `onError`, and the
+ * shape of the `customdomain:error` event detail.
+ *
+ * `status` is the HTTP status of the control plane response the error came
+ * from. It is unset when the error was raised by the widget or by the SDK
+ * itself (an `onError` call, a missing `container`). Retry guidance: a 429 or
+ * any 5xx is transient, so the same call can be retried after a pause; a 4xx
+ * other than 429 answers the same way until the request changes (the token,
+ * the domain, the records). A network failure never reaches this class: fetch
+ * rejects with a plain `TypeError`, which is also safe to retry.
+ */
 export class CustomDomainError extends Error {
   code: string;
   details?: string;
-  constructor(code: string, message: string, details?: string) {
+  /** HTTP status of the control plane response, when there was one. */
+  readonly status?: number;
+  constructor(code: string, message: string, details?: string, status?: number) {
     super(message);
     this.code = code;
     this.details = details;
+    this.status = status;
     this.name = "CustomDomainError";
   }
 }
@@ -459,11 +518,21 @@ export class CustomDomain {
   }
 
   /** Pre-flight: full feature-detection for a domain (spec §1.6 checkDomain). */
-  async checkDomain(domain: string, cfg: { token: string; apiBase?: string }): Promise<CheckDomainResult> {
+  /**
+   * Pre-flight a domain without opening the widget. Pass `dnsRecords` (the
+   * same shape as `open({ dnsRecords })`) to have conflict detection and the
+   * `willFallbackToManual` prediction run against the records you intend to
+   * write; `integrationWarnings` is only ever set in that case.
+   */
+  async checkDomain(
+    domain: string,
+    cfg: { token: string; apiBase?: string; dnsRecords?: DNSRecord[] }
+  ): Promise<CheckDomainResult> {
+    const records = cfg.dnsRecords?.map((rec) => ({ type: rec.type, host: rec.host, value: rec.value }));
     const res = await fetch(`${cfg.apiBase || this.apiBase}/v1/domains:check`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${cfg.token}` },
-      body: JSON.stringify({ domain }),
+      body: JSON.stringify(records?.length ? { domain, records } : { domain }),
     });
     if (!res.ok) throw await toError(res);
     const r = await res.json();
@@ -498,6 +567,7 @@ export class CustomDomain {
             domainConnect: r.rails.domain_connect,
             apiKey: r.rails.api_key,
             manual: r.rails.manual,
+            cloudBrowser: r.rails.cloud_browser ?? undefined,
           }
         : undefined,
       recommendedRail: r.recommended_rail,
@@ -505,6 +575,14 @@ export class CustomDomain {
       blockedReason: r.blocked_reason,
       dashboardUrl: r.dashboard_url,
       nameservers: r.nameservers,
+      detectionError: r.detection_error,
+      targetMode: r.target_mode,
+      apexStrategy: r.apex_strategy,
+      apexRecordType: r.apex_record_type,
+      apexTargets: r.apex_targets,
+      integrationWarnings: r.integration_warnings,
+      managedDns: r.managed_dns,
+      sandbox: r.sandbox,
     };
   }
 
@@ -896,9 +974,9 @@ function relativeHost(host: string, domain: string): string {
 async function toError(res: Response): Promise<CustomDomainError> {
   try {
     const body = await res.json();
-    return new CustomDomainError(body.code || `http_${res.status}`, body.title || res.statusText, body.details);
+    return new CustomDomainError(body.code || `http_${res.status}`, body.title || res.statusText, body.details, res.status);
   } catch {
-    return new CustomDomainError(`http_${res.status}`, res.statusText);
+    return new CustomDomainError(`http_${res.status}`, res.statusText, undefined, res.status);
   }
 }
 
