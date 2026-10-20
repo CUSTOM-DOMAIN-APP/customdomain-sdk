@@ -1,4 +1,4 @@
-# CustomDomain™ SDK
+# CustomDomain™ SDK: custom domains for your SaaS in JavaScript and React
 
 The browser SDK that lets your SaaS users connect their own domain.
 
@@ -76,6 +76,153 @@ Check the live provider census the numbers above come from:
 
 ```sh
 curl -s https://api.customdomain.ai/v1/providers/census | head -c 200
+```
+
+## Framework guides
+
+Every guide below has the same two halves. Your server holds the API key and mints a widget token that lasts
+15 minutes; the browser asks your server for one and passes it to the widget. The browser never sees the API
+key. Exact token options and errors are in
+[Installation and embed](https://docs.customdomain.ai/docs/widget-sdk/installation-and-embed).
+
+### Next.js
+
+A route handler mints the token. Keep `CUSTOMDOMAIN_API_KEY` in the server environment, and check that the
+caller is signed in before you answer:
+
+```ts
+// app/api/customdomain-token/route.ts
+export async function POST() {
+  // Check your own session here: only signed-in users should get a token.
+  const res = await fetch("https://app.customdomain.ai/api/widget-token", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.CUSTOMDOMAIN_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}), // optional: { application_id, domain }
+  });
+  if (!res.ok) return Response.json({ error: "token_failed" }, { status: 502 });
+  const { application_id, token } = await res.json();
+  return Response.json({ application_id, token });
+}
+```
+
+The button is a client component. `@customdomain/react` touches `window` only inside effects, so the page
+around it can render on the server:
+
+```tsx
+// app/settings/domain/connect-domain-button.tsx
+"use client";
+
+import { useCustomdomain } from "@customdomain/react";
+
+async function fetchToken(): Promise<{ application_id: string; token: string }> {
+  const res = await fetch("/api/customdomain-token", { method: "POST" });
+  if (!res.ok) throw new Error("Could not get a widget token");
+  return res.json();
+}
+
+export function ConnectDomainButton({ applicationId, userId }: { applicationId: string; userId: string }) {
+  const { open, ready } = useCustomdomain({
+    applicationId,
+    token: "", // open() below passes a fresh one
+    getToken: async () => (await fetchToken()).token, // keeps long manual setups alive
+    endUserRef: userId,
+    onSuccess: ({ domain }) => console.log(`${domain} connected`),
+  });
+
+  return (
+    <button disabled={!ready} onClick={async () => open({ token: (await fetchToken()).token })}>
+      Connect your domain
+    </button>
+  );
+}
+```
+
+### React
+
+Any React app (Vite, Remix, Create React App) uses the same package. `<CustomdomainConnect>` opens the flow
+when it mounts and closes it when it unmounts or `open` turns `false`:
+
+```tsx
+import { useState } from "react";
+import { CustomdomainConnect } from "@customdomain/react";
+
+export function DomainSettings({ applicationId, token }: { applicationId: string; token: string }) {
+  const [connecting, setConnecting] = useState(false);
+
+  return (
+    <>
+      <button onClick={() => setConnecting(true)}>Connect your domain</button>
+      <CustomdomainConnect
+        open={connecting}
+        applicationId={applicationId}
+        token={token} // minted by your server
+        onSuccess={(r) => console.log("connected", r.domain)}
+        onClose={() => setConnecting(false)}
+      />
+    </>
+  );
+}
+```
+
+### Vue
+
+Vue uses `customdomain-js` directly. Callbacks passed to `open()` arrive in addition to the `customdomain:*`
+window events:
+
+```vue
+<script setup lang="ts">
+import { onBeforeUnmount } from "vue";
+import { customdomain } from "customdomain-js";
+
+const props = defineProps<{ userId: string }>();
+const emit = defineEmits<{ connected: [domain: string] }>();
+
+async function fetchToken(): Promise<{ application_id: string; token: string }> {
+  const res = await fetch("/api/customdomain-token", { method: "POST" });
+  if (!res.ok) throw new Error("Could not get a widget token");
+  return res.json();
+}
+
+async function connect() {
+  const { application_id, token } = await fetchToken();
+  customdomain.open({
+    applicationId: application_id,
+    token,
+    getToken: async () => (await fetchToken()).token,
+    endUserRef: props.userId,
+    onSuccess: ({ domain }) => emit("connected", domain),
+  });
+}
+
+onBeforeUnmount(() => customdomain.close());
+</script>
+
+<template>
+  <button @click="connect">Connect your domain</button>
+</template>
+```
+
+### Plain script tag
+
+No build step: the hosted bundle attaches `window.customdomain`.
+
+```html
+<button id="connect-domain">Connect your domain</button>
+<script src="https://app.customdomain.ai/widget-assets/customdomain-sdk.js"></script>
+<script>
+  document.getElementById("connect-domain").addEventListener("click", async () => {
+    const res = await fetch("/api/customdomain-token", { method: "POST" });
+    const { application_id, token } = await res.json();
+    window.customdomain.open({ applicationId: application_id, token });
+  });
+
+  window.addEventListener("customdomain:success", (e) => {
+    console.log("connected:", e.detail.domain);
+  });
+</script>
 ```
 
 ## What it does
