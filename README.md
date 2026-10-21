@@ -269,10 +269,12 @@ control plane, and your app listens for events.
 pnpm install
 pnpm -r build        # react typechecks against the SDK's generated .d.ts, so build first
 pnpm -r typecheck
+pnpm -r test         # runtime tests of the built SDK bundle, under node --test
 pnpm sim             # drives the built widget through headless Chromium, 6 scenarios
 ```
 
-CI runs all four on every pull request. The sim is a behavior gate, not a unit test: it walks
+CI runs all five on every pull request. The tests load the built `dist/index.js` and check what
+`open()` hands the widget and what `checkDomain()` returns. The sim is a behavior gate, not a unit test: it walks
 the OAuth journey, the manual fallback, locale and white-label theming, sequential multi-domain,
 resume of a live domain, and share-link minting against a stub control plane with real wire shapes.
 

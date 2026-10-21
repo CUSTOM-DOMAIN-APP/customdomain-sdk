@@ -18,11 +18,14 @@ import type {
   OpenConfig,
   PurchaseInitiated as SdkPurchaseInitiated,
   RemovedResult as SdkRemovedResult,
+  SuccessResult as SdkSuccessResult,
 } from "customdomain-js";
 import type {
   CustomdomainEventHandlers,
   PurchaseInitiated,
   RemovedResult,
+  SetupType,
+  SuccessResult,
   UseCustomdomainOptions,
   UseCustomdomainResult,
 } from "./index";
@@ -70,7 +73,39 @@ const _sdkHasRemoveDomain: Has<CustomDomain, "removeDomain"> = true;
 const _canStartRemoval: Has<UseCustomdomainResult, "removeDomain"> = true;
 const _removalIsAddressable: Has<OpenConfig, "connectionId" | "mode"> = true;
 
+// Reconnect: the widget's open mode "reconnect" (one sign-in renews the domain's
+// lasting API key, no DNS change). It has no entry point of its own: the hook
+// takes OpenConfig's own `mode`, so the options and `open()`'s per-call overrides
+// must both accept it, and onSuccess must see the SDK's `reconnected` flag. If
+// the wrapper ever narrows `mode` (or the SDK drops "reconnect"), this fails.
+const _modeIsTheSdks: Exact<UseCustomdomainOptions["mode"], OpenConfig["mode"]> = true;
+const _reconnectInOptions: UseCustomdomainOptions = {
+  applicationId: "app_1",
+  token: "t",
+  mode: "reconnect",
+  connectionId: "conn_1",
+};
+const _reconnectAsOverride: NonNullable<Parameters<UseCustomdomainResult["open"]>[0]> = {
+  mode: "reconnect",
+  domain: "acme.com",
+};
+const _reconnectSuccessIsTyped: Exact<
+  Parameters<NonNullable<CustomdomainEventHandlers["onSuccess"]>>[0],
+  SdkSuccessResult
+> = true;
+const _successSaysReconnected: Has<SuccessResult, "reconnected"> = true;
+const _reconnectIsASetupType: "reconnect" extends SetupType ? true : never = true;
+// @ts-expect-error a mode the widget does not know is refused here too
+const _unknownMode: UseCustomdomainOptions = { applicationId: "app_1", token: "t", mode: "renew" };
+
 export type {};
+void _modeIsTheSdks;
+void _reconnectInOptions;
+void _reconnectAsOverride;
+void _reconnectSuccessIsTyped;
+void _successSaysReconnected;
+void _reconnectIsASetupType;
+void _unknownMode;
 void _payloadIsReExported;
 void _removedPayloadIsReExported;
 void _removedHandlerExists;
