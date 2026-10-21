@@ -16,6 +16,8 @@ jobs:
       # generated .d.ts, so the SDK must be built before the recursive typecheck.
       - run: pnpm -r build
       - run: pnpm -r typecheck
+      # Runtime tests of the built SDK bundle (node --test, no browser needed).
+      - run: pnpm -r test
       # Behavior gate: drive the real built bundles through Chromium (both
       # connect journeys, locale, white-label theming, multi-domain, resume).
       - name: Install Chromium for the widget sim

@@ -2,7 +2,7 @@
 
 The browser SDK that lets your SaaS users connect their own domain.
 
-**Status:** Maintained · v0.5.4 · TypeScript · published to npm with provenance
+**Status:** Maintained · v0.5.5 · TypeScript · published to npm with provenance
 
 [![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
@@ -18,7 +18,7 @@ The browser SDK that lets your SaaS users connect their own domain.
 | **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
 | **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
 | **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
-| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.4** on npm · every pull request builds the real bundle and drives it through headless Chromium |
+| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.5** on npm · every pull request builds the real bundle and drives it through headless Chromium |
 
 This repository is the client half of [CustomDomain™](https://customdomain.ai): two npm packages
 your application installs, plus the widget they open. Your app calls one function; the user pastes
@@ -269,10 +269,12 @@ control plane, and your app listens for events.
 pnpm install
 pnpm -r build        # react typechecks against the SDK's generated .d.ts, so build first
 pnpm -r typecheck
+pnpm -r test         # runtime tests of the built SDK bundle, under node --test
 pnpm sim             # drives the built widget through headless Chromium, 6 scenarios
 ```
 
-CI runs all four on every pull request. The sim is a behavior gate, not a unit test: it walks
+CI runs all five on every pull request. The tests load the built `dist/index.js` and check what
+`open()` hands the widget and what `checkDomain()` returns. The sim is a behavior gate, not a unit test: it walks
 the OAuth journey, the manual fallback, locale and white-label theming, sequential multi-domain,
 resume of a live domain, and share-link minting against a stub control plane with real wire shapes.
 
@@ -283,10 +285,12 @@ one [CHANGELOG.md](./CHANGELOG.md). Every published version has a `vX.Y.Z` tag a
 [GitHub release](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/releases) whose notes are
 that version's CHANGELOG entry.
 
-To release: sync the source from the product monorepo, bump both `package.json` files, add the
-CHANGELOG section, merge, then push a `vX.Y.Z` tag. `release.yml` publishes both packages with npm
-provenance, runs `scripts/verify-release.sh` against the live registry, and only then creates the
-GitHub release. A separate weekly `sdk-drift` job compares this repo against the registry, because
+To release: bump both `package.json` files, add the CHANGELOG section, merge, then push a
+`vX.Y.Z` tag. `release.yml` publishes both packages with npm provenance, runs
+`scripts/verify-release.sh` against the live registry, and only then creates the GitHub release.
+It runs only where GitHub Actions run for this repository; however the packages are published,
+the release is done when `scripts/verify-release.sh` exits 0. The product monorepo then picks the
+release up with its `scripts/vendor-sdk.sh X.Y.Z`; it holds no SDK source of its own. A separate weekly `sdk-drift` job compares this repo against the registry, because
 a release that silently never fires produces no failing check anywhere else.
 
 ## Known limitations

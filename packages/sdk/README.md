@@ -65,7 +65,7 @@ script exposes the same instance as `window.customdomain`.
 
 | Method | Purpose |
 |---|---|
-| `open(config)` | Open the connect widget. Returns `{ close }`. |
+| `open(config)` | Open the connect widget, or the flow `mode` names. Returns `{ close }`. |
 | `checkDomain(domain, { token, dnsRecords? })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. Pass `dnsRecords` to check conflicts against the records you intend to write. Every field is listed under [Pre-flight with `checkDomain`](#pre-flight-with-checkdomain). Throws a `CustomDomainError` with `status` set, see [Errors and retries](#errors-and-retries). |
 | `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. Resolves to `{ domain, inSync, records }`, one entry per record with the values observed. Throws like `checkDomain`. |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
@@ -91,7 +91,8 @@ The ones most integrations use. The full list is in the
 | `locale` | `string` | UI language. |
 | `endUserRef` | `string` | Your id for this customer. Stored on the connection and shown in the console. |
 | `container` | `string` | Embedded mode: CSS selector of an element on your page to render inside, as a flat panel, instead of the fullscreen modal. The element must be positioned (the widget fills it with `position: absolute; inset: 0`), and `whiteLabel.embedded` is set for you. `open()` throws when nothing matches the selector. |
-| `connectionId` | `string` | `removeDomain()` only: the connection to remove, when you kept its id. Otherwise the prefilled domain is looked up. |
+| `mode` | `"connect" \| "remove" \| "reconnect"` | The flow the widget opens on. `connect` is the default; `remove` is what `removeDomain()` sets; `reconnect` renews the domain's lasting API key with one sign-in, see [Reconnecting a domain](#reconnecting-a-domain). |
+| `connectionId` | `string` | For `remove` and `reconnect`: the connection, when you kept its id. Otherwise the prefilled domain is looked up. |
 | `onSuccess`, `onClose`, `onStepChange`, `onError`, `onFallback`, `onRemoved` | functions | Callbacks, delivered in addition to the window events below. |
 
 ## Events
@@ -100,7 +101,7 @@ Every callback also arrives as a window `CustomEvent`, so you can listen from an
 
 | Window event | Callback | Detail |
 |---|---|---|
-| `customdomain:success` | `onSuccess` | `{ jobId, domain, setupType, provider?, alreadyConnected?, processedDomains?, pendingDomains? }` |
+| `customdomain:success` | `onSuccess` | `{ jobId, domain, setupType, provider?, alreadyConnected?, reconnected?, processedDomains?, pendingDomains? }`. After a reconnect, `setupType` is `reconnect` and `reconnected` is `true`. |
 | `customdomain:close` | `onClose` | `{ lastStatus?, error?, shared?, manualScreenDisabled? }` |
 | `customdomain:step` | `onStepChange` | `{ step, domain?, provider?, user?, pendingDomains?, processedDomains?, error? }` |
 | `customdomain:error` | `onError` | `{ code, message, title?, details? }`. `onError` receives a `CustomDomainError`. |
@@ -163,6 +164,33 @@ customdomain.removeDomain({
 });
 ```
 
+## Reconnecting a domain
+
+When a domain is connected with secure sign-in, CustomDomain™ makes a lasting API key at the DNS
+provider where the provider allows it, and keeps it. When that key nears its end, or the provider
+stops accepting it, `open({ mode: "reconnect" })` opens straight on the sign-in that renews it: one
+sign-in, a new key, and no DNS record changes. Address the domain the way a removal does: the `connectionId` if you
+kept it, or the domain as `domain` / `prefilledDomain`. Mint the token for that domain and end user.
+A domain with no such key gets a short notice instead.
+
+It ends in the same `onSuccess` (and `customdomain:success`) as a connect, with
+`setupType: "reconnect"` and `reconnected: true`, so check `reconnected` before you treat the
+success as a new domain.
+
+```ts
+customdomain.open({
+  applicationId: "app_123",
+  token, // minted for this domain and end user
+  mode: "reconnect",
+  connectionId,
+  onSuccess: (r) => {
+    if (r.reconnected) console.log(`${r.domain}: access renewed`);
+  },
+});
+```
+
+More on lasting API keys: [Secure sign-in](https://docs.customdomain.ai/docs/guides/secure-sign-in#reconnect).
+
 ## Pre-flight with `checkDomain`
 
 `checkDomain` tells you what will happen before a user starts, without opening the widget. It
@@ -193,7 +221,8 @@ Every field of `CheckDomainResult`. Optional fields are absent when the server d
 | `NSSupport` | `{ root?, subdomains? }` | Whether nameserver delegation is possible at the root and for subdomains. |
 | `wildcardSupport`, `cnameFlattening`, `spfOverrideSupport`, `caaSupport` | `boolean` | Provider capabilities. |
 | `supportsSocialLogin` | `string` | `yes` when the provider's rail signs the user in, `no` when it does not, `n-a` when unknown. |
-| `recordConflicts` | `Array<{ kind, host, type, existing, desired }>` | Existing records that clash with the ones to be written. A `caa-blocks-letsencrypt` conflict is a certificate advisory, not a DNS write clash, and does not count towards the tolerance. |
+| `recordConflicts` | `Array<{ kind, host, type, existing, desired }>` | Existing records that clash with the ones to be written. A control plane that does not return `advisories` also lists a `caa-blocks-letsencrypt` entry here: a certificate advisory, not a DNS write clash, which does not count towards the tolerance. |
+| `advisories` | `Array<{ kind, host, type, existing, desired }>` | Warnings that replace nothing, such as a CAA record that blocks Let's Encrypt (kind `caa-blocks-letsencrypt`). They never count towards the tolerance. Absent when the control plane does not return the field; then that entry is in `recordConflicts`, so read both. |
 | `conflictTolerance` | `number` | How many conflicts the provider's automatic rail tolerates before it stops writing. |
 | `willFallbackToManual` | `boolean` | The server's prediction that the one-click rail would quietly become a manual record list for this domain. |
 | `apexSupported` | `boolean` | Provider fact: it can host a CNAME-like record at the zone root. |

@@ -96,7 +96,13 @@ export type UseCustomdomainOptions = Omit<
   CustomdomainEventHandlers;
 
 export interface UseCustomdomainResult {
-  /** Open the widget modal. Optional per-call overrides merge over the options. */
+  /**
+   * Open the widget modal. Optional per-call overrides merge over the options.
+   * It opens the connect flow unless the options set `mode`: pass
+   * `{ mode: "reconnect", connectionId }` (or the domain) to open the sign-in
+   * that renews the domain's lasting API key; `onSuccess` then receives
+   * `setupType: "reconnect"` and `reconnected: true`.
+   */
   open: (overrides?: Partial<OpenConfig>) => { close: () => void } | undefined;
   /**
    * Sell: open the widget on the buy-a-domain screen (the SDK's
@@ -111,8 +117,8 @@ export interface UseCustomdomainResult {
    * `removeDomain`) for the `connectionId` in the options, or for the
    * `prefilledDomain`/`domain` when you did not keep the id. Mint the token for
    * that domain and end user. Pair it with `onRemoved`, which receives what
-   * happened to the DNS records. Like `purchaseDomain`, this is the entry point;
-   * `open()` always starts the connect flow.
+   * happened to the DNS records. Like `purchaseDomain`, this is the entry point
+   * for the flow; it sets `mode: "remove"` for you.
    */
   removeDomain: (overrides?: Partial<OpenConfig>) => { close: () => void } | undefined;
   /** Close/tear down the modal. */

@@ -30,7 +30,12 @@ export interface DNSRecord {
   purpose?: string;
 }
 
-export type SetupType = "automatic" | "manual" | "semiautomatic" | "sharedLogin" | "purchase";
+/**
+ * How a flow finished, on `SuccessResult.setupType`. `reconnect` is the end of a
+ * `mode: "reconnect"` flow: the domain's lasting API key was renewed and no DNS
+ * record changed.
+ */
+export type SetupType = "automatic" | "manual" | "semiautomatic" | "sharedLogin" | "purchase" | "reconnect";
 
 export interface WhiteLabel {
   colors?: Record<string, string>;
@@ -191,17 +196,27 @@ export interface OpenConfig {
    */
   getToken?: () => string | Promise<string>;
   /**
-   * "remove" opens the removal flow for a connected domain instead of the
-   * connect flow (removeDomain() sets it): the widget shows the DNS records
-   * that were added, asks whether to remove or keep them, asks the user to
-   * sign in once more when the access used to connect was not kept, and
-   * reports what happened in `customdomain:removed`.
+   * Which flow the widget opens on. "connect" (the default) connects a domain.
+   *
+   * "remove" opens the removal flow for a connected domain instead
+   * (removeDomain() sets it): the widget shows the DNS records that were
+   * added, asks whether to remove or keep them, asks the user to sign in once
+   * more when the access used to connect was not kept, and reports what
+   * happened in `customdomain:removed`.
+   *
+   * "reconnect" opens straight on the sign-in that renews the lasting API key
+   * CustomDomain™ made at the domain's DNS provider, for when it nears its end
+   * or the provider stopped accepting it: one sign-in, a new key, no DNS
+   * change. It ends in `customdomain:success` with `setupType: "reconnect"`
+   * and `reconnected: true`. A domain with no such key gets a short notice
+   * instead. https://docs.customdomain.ai/docs/guides/secure-sign-in#reconnect
    */
-  mode?: "connect" | "remove";
+  mode?: "connect" | "remove" | "reconnect";
   /**
-   * The connection to remove, when you kept its id; otherwise the prefilled
-   * domain is looked up. Either way the token must be minted for that domain
-   * and end user.
+   * The connection to remove or reconnect, when you kept its id; otherwise the
+   * prefilled domain is looked up. Either way the token must be minted for
+   * that domain and end user (POST /v1/tokens with `domain` and
+   * `end_user_ref`).
    */
   connectionId?: string;
   /** Called when the removal finished (also the `customdomain:removed` event). */
@@ -261,6 +276,12 @@ export interface SuccessResult {
    * connected" outcome from a fresh connect (WS5-7).
    */
   alreadyConnected?: boolean;
+  /**
+   * Set (true) when a `mode: "reconnect"` flow renewed the domain's lasting API
+   * key, with `setupType: "reconnect"`. No DNS record changed, so tell it apart
+   * from a fresh connect before acting on the success.
+   */
+  reconnected?: boolean;
   /** Multi-domain (CP-PAR-3): domains completed / still pending at this success. */
   processedDomains?: string[];
   pendingDomains?: string[];
@@ -337,7 +358,13 @@ export interface CheckDomainResult {
   spfOverrideSupport?: boolean;
   caaSupport?: boolean;
   supportsSocialLogin?: string;
+  /** Existing records the automatic write would replace. */
   recordConflicts?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
+  /** Non-destructive advisories (CAA blocking Let's Encrypt, SPF to merge). Never counted
+   * toward the automatic to manual fallback; render as authorize or merge. Absent when the
+   * control plane does not return the field: one that predates it reports the CAA advisory
+   * (kind `caa-blocks-letsencrypt`) in `recordConflicts` instead, so read both. */
+  advisories?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
   /**
    * P6.4 · F10 — the rest of the pre-flight the control plane already returns
    * (connect.go:458-466). `recordConflicts` alone is not actionable without
@@ -554,6 +581,7 @@ export class CustomDomain {
       caaSupport: r.caa_support,
       supportsSocialLogin: r.supports_social_login,
       recordConflicts: r.record_conflicts,
+      advisories: r.advisories,
       conflictTolerance: r.conflict_tolerance,
       willFallbackToManual: r.will_fallback_to_manual,
       apexSupported: r.apex_supported,
