@@ -113,6 +113,8 @@ Every other prop is passed straight to the SDK's `OpenConfig`, including `domain
 | `wwwRedirect` | Root domains only: `true` connects the root and `www` and redirects the root to `www`; `false` connects the root alone; unset lets the user choose. |
 | `onError` | Receives a `CustomDomainError` when the widget shows an error (also dispatched as `customdomain:error`). |
 | `onFallback` | Receives a `FallbackDetail` (`{ reason, provider?, screen?, message? }`) when the widget sends the user to copy records by hand (also dispatched as `customdomain:fallback`). |
+| `mode` | `"connect"` (the default), `"remove"` (what `removeDomain()` sets) or `"reconnect"`. See [Reconnecting a domain](#reconnecting-a-domain). |
+| `connectionId` | For a removal or a reconnect: the connection, when you kept its id. Otherwise the domain is looked up. |
 
 Every public type is re-exported from `customdomain-js`, so your editor autocompletes every option:
 `OpenConfig`, `WhiteLabel`, `DNSRecord`, `DNSRecordType`, `SetupType`, `SuccessResult`, `StepDetail`,
@@ -146,7 +148,7 @@ const { purchaseDomain, ready } = useCustomdomain({
 ## Removing a domain
 
 `removeDomain()` opens the widget on the removal flow for a connected domain, the way
-`purchaseDomain()` opens the buy screen: `open()` always starts the connect flow. Pass the
+`purchaseDomain()` opens the buy screen; it sets `mode: "remove"` for you. Pass the
 `connectionId` you kept in the hook options (or as an override), or the domain as `domain` /
 `prefilledDomain`. Mint the token for that domain and end user, with `POST /v1/tokens`.
 
@@ -164,6 +166,30 @@ const { removeDomain, ready } = useCustomdomain({
 
 <button disabled={!ready} onClick={() => removeDomain({ connectionId })}>Remove domain</button>;
 ```
+
+## Reconnecting a domain
+
+When a domain is connected with secure sign-in, CustomDomain™ makes a lasting API key at the DNS
+provider where the provider allows it. When that key nears its end, or the provider stops accepting
+it, `open({ mode: "reconnect" })` opens straight on the sign-in that renews it: one sign-in, a new
+key, no DNS record changes. Pass the `connectionId` you kept, or the domain as `domain` /
+`prefilledDomain`, and mint the token for that domain and end user. `onSuccess` receives
+`setupType: "reconnect"` and `reconnected: true`, so check `reconnected` before you treat it as a
+new domain.
+
+```tsx
+const { open, ready } = useCustomdomain({
+  applicationId: "app_123",
+  token, // minted for this domain and end user
+  onSuccess: (r) => {
+    if (r.reconnected) console.log(`${r.domain}: access renewed`);
+  },
+});
+
+<button disabled={!ready} onClick={() => open({ mode: "reconnect", connectionId })}>Reconnect</button>;
+```
+
+More on lasting API keys: [Secure sign-in](https://docs.customdomain.ai/docs/guides/secure-sign-in#reconnect).
 
 ## White-label logos
 

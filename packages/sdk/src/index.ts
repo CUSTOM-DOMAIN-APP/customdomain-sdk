@@ -361,7 +361,9 @@ export interface CheckDomainResult {
   /** Existing records the automatic write would replace. */
   recordConflicts?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
   /** Non-destructive advisories (CAA blocking Let's Encrypt, SPF to merge). Never counted
-   * toward the automatic to manual fallback; render as authorize or merge. */
+   * toward the automatic to manual fallback; render as authorize or merge. Absent when the
+   * control plane does not return the field: one that predates it reports the CAA advisory
+   * (kind `caa-blocks-letsencrypt`) in `recordConflicts` instead, so read both. */
   advisories?: Array<{ kind: string; host: string; type: string; existing: string; desired: string }>;
   /**
    * P6.4 · F10 — the rest of the pre-flight the control plane already returns

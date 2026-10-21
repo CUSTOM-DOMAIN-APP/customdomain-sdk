@@ -38,6 +38,54 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [0.5.5] (2026-10-21)
+
+The first release made in this repo rather than copied from the product monorepo, which now
+vendors each release instead of carrying the source. Nothing was removed or narrowed; one union
+widens, under **Changed**.
+
+### Added
+
+- **`customdomain-js`**: `OpenConfig.mode` accepts `"reconnect"`, the hosted widget's mode that
+  opens straight on the sign-in that renews the lasting API key CustomDomain™ made at a domain's
+  DNS provider: one sign-in, a new key, no DNS change. Address the domain with `connectionId`, or
+  as `domain` / `prefilledDomain`, and mint the token for that domain and end user. The SDK always
+  forwarded `mode` to the widget, so this worked at runtime; the 0.5.4 types named only
+  `"connect"` and `"remove"`, so TypeScript callers had to cast.
+- **`customdomain-js`**: `SuccessResult.reconnected`, which the widget sets (`true`) on the
+  `customdomain:success` that ends a reconnect, together with `setupType: "reconnect"`.
+- **`customdomain-js`**: `CheckDomainResult.advisories`, mapped from `advisories` in the
+  `POST /v1/domains:check` answer: warnings that replace nothing, such as a CAA record that blocks
+  Let's Encrypt (kind `caa-blocks-letsencrypt`). They never count toward `willFallbackToManual`.
+- **`@customdomain/react`**: no new export is needed. The hook's options and `open()`'s overrides
+  take the SDK's own `OpenConfig`, so `mode: "reconnect"` and `connectionId` type-check, and
+  `onSuccess` receives `reconnected`. Its README shows a reconnect. It depends on
+  `customdomain-js@0.5.5`.
+- **Both packages**: `packages/sdk/src/open-mode-parity.assert.ts` mirrors the widget's list of
+  modes in both directions, and `packages/react/src/sdk-parity.assert.ts` asserts that the hook
+  accepts every SDK mode and types `reconnected`. Both are compile time and fail the build on drift.
+- **Repository**: runtime tests of the built SDK bundle in `packages/sdk/test/` (Node's test
+  runner, no browser): what `open()` hands the widget for a reconnect by id and by domain, the
+  reconnect success reaching `onSuccess` and the window event, `removeDomain()` still forcing
+  `"remove"`, and the `advisories` mapping. `pnpm -r test` runs them, and `ci.yml` after the typecheck.
+
+### Changed
+
+- **`customdomain-js`**: `SetupType` gains `"reconnect"`. A `switch` over
+  `SuccessResult.setupType` that proves exhaustiveness with `never` needs a case for it.
+- **Both packages**: the READMEs document `mode`, reconnecting a domain and `reconnected`, and the
+  SDK's pre-flight table lists `advisories`.
+- **Repository**: `scripts/verify-release.sh` polls the packument the way it polls dist-tags. The
+  0.5.2 release run failed on a publish that had landed, because `@customdomain/react`'s packument
+  did not list 0.5.2 yet when its dist-tag already did.
+
+### Compatibility
+
+- `mode: "reconnect"` is read by the hosted widget at app.customdomain.ai today.
+- `advisories` is filled once the control plane returns it (CUSTOM-DOMAIN-APP/custom-domains#258).
+  Until then it is absent and a CAA record that blocks Let's Encrypt still arrives in
+  `recordConflicts`, so read both.
+
 ## [0.5.4] (2026-10-15)
 
 `packages/sdk/src/index.ts` and `packages/react/src/index.tsx` are byte identical to the product
@@ -352,6 +400,8 @@ Breaking for TypeScript consumers who referenced them (both were type level only
 already at version 0.1.0. Version 0.1.0 was never published to npm, and there is no usable history
 before that point, so no 0.1.0 entry is reconstructed here.
 
+[0.5.5]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.4...v0.5.5
+[0.5.4]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/compare/v0.5.0...v0.5.1
