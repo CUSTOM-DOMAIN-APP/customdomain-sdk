@@ -17,15 +17,16 @@ whose notes are the entry for that version.
 
 ## The two repositories
 
-- **This repo** (`CUSTOM-DOMAIN-APP/customdomain-sdk`) is the **npm publishing source**. It
-  carries what the product monorepo does not: `publishConfig` with provenance, the tag-driven
-  release pipeline, the standalone CI, and the public READMEs.
-- **The product monorepo** is where the source is **developed**. Its `packages/sdk`,
-  `packages/react` and `packages/widget` are all `"private": true`, so it cannot publish over
-  this repo.
-- The two are **synced by hand**. Source files are copied across and are expected to be byte
-  identical. Editing `packages/sdk/src/index.ts` in the monorepo ships nothing until that edit is
-  carried here, tagged, and verified on the registry.
+- **This repo** (`CUSTOM-DOMAIN-APP/customdomain-sdk`) is the **only source** of both packages
+  and the **npm publishing source**: changes are made here, released here with a `vX.Y.Z` tag,
+  and verified on the registry here.
+- **The product monorepo** holds no SDK source. Its `packages/sdk` and `packages/react` are the
+  published npm tarballs, unpacked by its `scripts/vendor-sdk.sh <version>`, and the hosted
+  bundle it serves (`app.customdomain.ai/widget-assets/customdomain-sdk.js`) is a copy of the
+  vendored build. A release reaches the hosted bundle only after that script runs there and the
+  product deploys.
+- Up to 0.5.4 the source was developed in the monorepo and copied here by hand, so the entries
+  for those versions say which monorepo commit they were byte identical to.
 
 ## How this file relates to releases
 

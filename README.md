@@ -285,10 +285,12 @@ one [CHANGELOG.md](./CHANGELOG.md). Every published version has a `vX.Y.Z` tag a
 [GitHub release](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/releases) whose notes are
 that version's CHANGELOG entry.
 
-To release: sync the source from the product monorepo, bump both `package.json` files, add the
-CHANGELOG section, merge, then push a `vX.Y.Z` tag. `release.yml` publishes both packages with npm
-provenance, runs `scripts/verify-release.sh` against the live registry, and only then creates the
-GitHub release. A separate weekly `sdk-drift` job compares this repo against the registry, because
+To release: bump both `package.json` files, add the CHANGELOG section, merge, then push a
+`vX.Y.Z` tag. `release.yml` publishes both packages with npm provenance, runs
+`scripts/verify-release.sh` against the live registry, and only then creates the GitHub release.
+It runs only where GitHub Actions run for this repository; however the packages are published,
+the release is done when `scripts/verify-release.sh` exits 0. The product monorepo then picks the
+release up with its `scripts/vendor-sdk.sh X.Y.Z`; it holds no SDK source of its own. A separate weekly `sdk-drift` job compares this repo against the registry, because
 a release that silently never fires produces no failing check anywhere else.
 
 ## Known limitations

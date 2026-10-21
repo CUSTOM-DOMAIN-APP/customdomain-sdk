@@ -202,9 +202,10 @@ if [ ${#FAILURES[@]} -eq 0 ]; then
 verify-release: OK — $VERSION is live on $REGISTRY and the published source is
 byte-identical to this repo. The release is DELIVERED.
 
-Remaining cross-repo step, which this script cannot see: the product monorepo's
-hosted bundle is a SEPARATE distribution channel. Confirm it too —
-    cd /home/user/custom-domains && infra/scripts/check-npm-drift.sh --verbose
+Remaining cross-repo step, which this script cannot see: the product monorepo
+vendors this release, and its hosted bundle (app.customdomain.ai/widget-assets/
+customdomain-sdk.js) is a copy of it. Refresh it there, then deploy the product —
+    cd /home/user/custom-domains && scripts/vendor-sdk.sh $VERSION && infra/scripts/check-bundle-fresh.sh
 EOF
 	exit 0
 fi
