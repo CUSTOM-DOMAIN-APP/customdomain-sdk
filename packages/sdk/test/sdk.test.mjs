@@ -175,3 +175,66 @@ test("checkDomain leaves advisories undefined when the control plane does not se
   assert.equal(r.advisories, undefined);
   assert.deepEqual(r.recordConflicts, []);
 });
+
+test("checkDomain maps the key a secure sign-in makes, the DNS hosting verdict, the kept keys and the second provider", async () => {
+  const account = {
+    account_id: "pa_1", provider: "namecheap", provider_name: "Namecheap", label: "Namecheap (ops)", how: "secure_sign_in",
+    owner_kind: "workspace", scope: "selected", zone: "acme.com", ready: true, status: "active",
+    application_id: "app_1", key_name: "customdomain", key_expires_at: "2027-01-01T00:00:00Z", last_used_at: "2026-10-01T00:00:00Z",
+  };
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      domain: "acme.com", provider: "namecheap", setup_type: "automatic", record_conflicts: [],
+      rails: {
+        oauth: { available: false, reason: "provider_has_no_oauth" },
+        domain_connect: { available: false, reason: "provider_has_no_domain_connect" },
+        api_key: { available: true, caveat: "api_eligibility" },
+        manual: { available: true },
+        cloud_browser: { available: true, key: { rights: ["account"], ends_in_days: null } },
+        nameservers: { verdict: "offered", reason: "application_offers" },
+        saved_access: { available: true, accounts: [account] },
+      },
+      recommended_rail: "saved_access",
+      also_provider: { provider: "squarespace", provider_name: "Squarespace", reason: "former_google_domains" },
+    }),
+  });
+  const r = await new CustomDomain({ apiBase: "https://api.test" }).checkDomain("acme.com", { token: "tok" });
+  assert.deepEqual(r.rails.cloudBrowser, { available: true, key: { rights: ["account"], endsInDays: null } });
+  assert.deepEqual(r.rails.apiKey, { available: true, caveat: "api_eligibility" });
+  assert.deepEqual(r.rails.nameservers, { verdict: "offered", reason: "application_offers" });
+  assert.equal(r.rails.savedAccess.available, true);
+  assert.deepEqual(r.rails.savedAccess.accounts, [{
+    accountId: "pa_1", provider: "namecheap", providerName: "Namecheap", label: "Namecheap (ops)", how: "secure_sign_in",
+    ownerKind: "workspace", scope: "selected", zone: "acme.com", ready: true, status: "active",
+    applicationId: "app_1", keyName: "customdomain", keyExpiresAt: "2027-01-01T00:00:00Z", lastUsedAt: "2026-10-01T00:00:00Z",
+  }]);
+  assert.equal(r.recommendedRail, "saved_access");
+  assert.deepEqual(r.alsoProvider, { provider: "squarespace", providerName: "Squarespace", reason: "former_google_domains" });
+});
+
+test("checkDomain leaves the newer rail fields absent when the control plane does not send them", async () => {
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      domain: "acme.com", provider: "cloudflare", setup_type: "automatic", record_conflicts: [],
+      rails: {
+        oauth: { available: true, flow: "cloudflare", managed: true },
+        domain_connect: { available: false, reason: "provider_has_no_domain_connect" },
+        api_key: { available: true },
+        manual: { available: true },
+      },
+      recommended_rail: "oauth",
+    }),
+  });
+  const r = await new CustomDomain({ apiBase: "https://api.test" }).checkDomain("acme.com", { token: "tok" });
+  assert.deepEqual(r.rails.oauth, { available: true, flow: "cloudflare", managed: true });
+  assert.equal("key" in r.rails.oauth, false);
+  assert.equal(r.rails.cloudBrowser, undefined);
+  assert.equal(r.rails.nameservers, undefined);
+  assert.equal(r.rails.savedAccess, undefined);
+  assert.equal(r.alsoProvider, undefined);
+  assert.equal(r.recommendedRail, "oauth");
+});
