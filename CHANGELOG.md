@@ -38,6 +38,48 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [0.5.6] (2026-10-25)
+
+The `checkDomain` answer now names everything `POST /v1/domains:check` sends since the product's
+Wave 2 release: the key a secure sign-in makes, the DNS hosting verdict, the kept keys that may act
+for the domain, and a second provider. The SDK always passed the answer through, so these were on
+the object at runtime; the 0.5.5 types did not name them. Nothing was removed; one union widens,
+under **Changed**.
+
+### Added
+
+- **`customdomain-js`**: `RailInfo.key`, on an available `cloudBrowser` rail whose sign-in also
+  makes a lasting API key: `rights` (what the key can do beyond DNS: `transfer`, `billing`,
+  `account`, or none) and `endsInDays` (`null` for no end date), mapped from `ends_in_days`. The
+  types also name `flow` and `managed` on an available `oauth` rail, which the server has sent
+  since 0.5.4's answer and the types left out.
+- **`customdomain-js`**: `rails.nameservers`, the DNS hosting verdict for the domain (`verdict`:
+  `offered`, `offered_first`, `recommended` or `unavailable`, and `reason`), present when the
+  application offers DNS hosting. It is distinct from the top level `nameservers`, the delegation
+  the detector observed, which is unchanged.
+- **`customdomain-js`**: `rails.savedAccess`: `available`, and `accounts`, each a `SavedAccess`
+  (the workspace's kept provider keys that may act for the domain, best first), mapped to camel
+  case (`accountId`, `providerName`, `ownerKind`, `applicationId`, `keyName`, `keyExpiresAt`,
+  `lastUsedAt`). Only an API key caller gets any; a widget token, which is what a browser holds,
+  gets `available: false` and no accounts, so a page never shows them.
+- **`customdomain-js`**: `alsoProvider` (`provider`, `providerName` and
+  `reason: "former_google_domains"`), set when the registrar and the nameservers name two
+  providers.
+- **`customdomain-js`**: the exported types `RailKey`, `DnsHostingVerdict`, `SavedAccess`,
+  `SavedAccessRail` and `AlsoProvider`; `@customdomain/react` re-exports them.
+- **Repository**: runtime tests of the new mapping, and of an answer without these fields leaving
+  them absent, in `packages/sdk/test/sdk.test.mjs`.
+- **Repository**: CI runs on `ubuntu-24.04`. `ubuntu-latest` became 26.04 on 2026-10-25, where
+  Playwright 1.54.1 has no Chromium build, so the widget sim could not start.
+
+### Changed
+
+- **`customdomain-js`**: `CheckDomainResult.recommendedRail` also takes `"saved_access"` and
+  `"cloud_browser"`, which the server has sent since the cloud browser rail and the Wave 2 release.
+  A `switch` over the union that was exhaustive needs the two cases.
+- **`@customdomain/react`**: no code change beyond the re-exports; depends on
+  `customdomain-js@0.5.6`.
+
 ## [0.5.5] (2026-10-21)
 
 The first release made in this repo rather than copied from the product monorepo, which now

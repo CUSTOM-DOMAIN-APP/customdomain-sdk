@@ -401,8 +401,28 @@ export interface CheckDomainResult {
     manual: RailInfo;
     /** Only present when the application has the cloud browser rail switched on. */
     cloudBrowser?: RailInfo;
+    /**
+     * The DNS hosting verdict: whether the application offers to host the
+     * domain's DNS by moving its nameservers. Absent while the application's
+     * setting is off. Not the delegation the detector observed, which is the
+     * top level `nameservers`.
+     */
+    nameservers?: DnsHostingVerdict;
+    /**
+     * The provider keys the workspace already keeps that may act for this
+     * domain. Only an API key caller gets any; a widget token, the one a
+     * browser holds, gets `available: false` and no accounts.
+     */
+    savedAccess?: SavedAccessRail;
   };
-  recommendedRail?: "oauth" | "domain_connect" | "api_key" | "manual";
+  recommendedRail?: "saved_access" | "oauth" | "domain_connect" | "cloud_browser" | "api_key" | "manual";
+  /**
+   * The second way, when the registrar and the nameservers name two providers:
+   * a former Google Domains name is Squarespace's now and keeps Google's
+   * nameservers, which Google Cloud DNS zones use too. `provider` is then the
+   * registrar's and this names the other.
+   */
+  alsoProvider?: AlsoProvider;
   endUserAutomatic?: boolean;
   blockedReason?: "unregistered" | "platform_subdomain";
   /** Best-effort deep link into the provider's DNS panel for this zone. */
@@ -445,6 +465,74 @@ export interface RailInfo {
   reason?: string;
   /** A note on an available rail most users still can't use (GoDaddy API gating). */
   caveat?: string;
+  /** Available `oauth` rail only: the sign-in it runs, so a client can label its button. */
+  flow?: string;
+  /** Available `oauth` rail only: the connect keeps its credential (managed mode). Omitted when it will not. */
+  managed?: boolean;
+  /** Available `ovh_consent` rail only: the API regions the consent can run in, the default first. */
+  regions?: string[];
+  /**
+   * Available `cloudBrowser` rail only, and only when the sign-in also makes a
+   * lasting API key: what that key can do beyond DNS and when it ends.
+   */
+  key?: RailKey;
+}
+
+/** The API key a secure sign-in makes, on `RailInfo.key`. */
+export interface RailKey {
+  /** What the key can do beyond DNS: empty when it is DNS only. */
+  rights: Array<"transfer" | "billing" | "account">;
+  /** Days until the key stops working, or `null` for no end date. */
+  endsInDays: number | null;
+}
+
+/** The DNS hosting verdict for a domain, on `rails.nameservers`. */
+export interface DnsHostingVerdict {
+  /**
+   * `offered`: after the other ways. `offered_first`: the application's
+   * setting is `prefer`. `recommended`: no automatic way works for this
+   * domain, so the move saves the person copying records. `unavailable`:
+   * offered, but not for this domain (`reason` says why).
+   */
+  verdict: "offered" | "offered_first" | "recommended" | "unavailable";
+  /** `application_offers`, `application_prefers`, `no_automatic_way`, or for `unavailable` the reason. */
+  reason: string;
+}
+
+/** One kept provider key that may act for the domain, on `rails.savedAccess.accounts`. */
+export interface SavedAccess {
+  accountId: string;
+  provider: string;
+  providerName: string;
+  label: string;
+  /** How the key came: a person pasted it, or the agent made it at a secure sign-in. */
+  how: "api_key" | "secure_sign_in";
+  ownerKind: "workspace" | "end_user";
+  scope: "all" | "selected";
+  /** The domain's zone at the provider. */
+  zone: string;
+  /** True when the key's scope holds the zone; false when using it adds the zone to its scope. */
+  ready: boolean;
+  /** `needs_reconnect` for a key that still works until its end date. */
+  status: "active" | "needs_reconnect";
+  applicationId?: string;
+  keyName?: string;
+  keyExpiresAt?: string;
+  lastUsedAt?: string;
+}
+
+/** The kept keys that may act for the domain, on `rails.savedAccess`. */
+export interface SavedAccessRail {
+  available: boolean;
+  /** Best first. Empty for a widget token. */
+  accounts: SavedAccess[];
+}
+
+/** The second provider a domain names, on `alsoProvider`. */
+export interface AlsoProvider {
+  provider: string;
+  providerName: string;
+  reason: "former_google_domains";
 }
 
 /** One warning about a record in the `dnsRecords` set passed to checkDomain. */
@@ -591,14 +679,24 @@ export class CustomDomain {
       publicSuffix: r.public_suffix,
       rails: r.rails
         ? {
-            oauth: r.rails.oauth,
-            domainConnect: r.rails.domain_connect,
-            apiKey: r.rails.api_key,
-            manual: r.rails.manual,
-            cloudBrowser: r.rails.cloud_browser ?? undefined,
+            oauth: railInfo(r.rails.oauth),
+            domainConnect: railInfo(r.rails.domain_connect),
+            apiKey: railInfo(r.rails.api_key),
+            manual: railInfo(r.rails.manual),
+            cloudBrowser: r.rails.cloud_browser ? railInfo(r.rails.cloud_browser) : undefined,
+            nameservers: r.rails.nameservers ?? undefined,
+            savedAccess: r.rails.saved_access
+              ? {
+                  available: r.rails.saved_access.available,
+                  accounts: (r.rails.saved_access.accounts ?? []).map(savedAccess),
+                }
+              : undefined,
           }
         : undefined,
       recommendedRail: r.recommended_rail,
+      alsoProvider: r.also_provider
+        ? { provider: r.also_provider.provider, providerName: r.also_provider.provider_name, reason: r.also_provider.reason }
+        : undefined,
       endUserAutomatic: r.end_user_automatic,
       blockedReason: r.blocked_reason,
       dashboardUrl: r.dashboard_url,
@@ -997,6 +1095,33 @@ function relativeHost(host: string, domain: string): string {
   if (h === domain || h === "@" || h === "") return "";
   if (h.endsWith(`.${domain}`)) return h.slice(0, -(domain.length + 1));
   return h;
+}
+
+// One rail's wire shape is the camelCase view already, except the key a secure
+// sign-in makes, whose `ends_in_days` becomes `endsInDays`.
+function railInfo(x: any): RailInfo {
+  if (!x || !x.key) return x;
+  const { key, ...rest } = x;
+  return { ...rest, key: { rights: key.rights ?? [], endsInDays: key.ends_in_days ?? null } };
+}
+
+function savedAccess(a: any): SavedAccess {
+  return {
+    accountId: a.account_id,
+    provider: a.provider,
+    providerName: a.provider_name,
+    label: a.label,
+    how: a.how,
+    ownerKind: a.owner_kind,
+    scope: a.scope,
+    zone: a.zone,
+    ready: a.ready,
+    status: a.status,
+    ...(a.application_id != null ? { applicationId: a.application_id } : {}),
+    ...(a.key_name != null ? { keyName: a.key_name } : {}),
+    ...(a.key_expires_at != null ? { keyExpiresAt: a.key_expires_at } : {}),
+    ...(a.last_used_at != null ? { lastUsedAt: a.last_used_at } : {}),
+  };
 }
 
 async function toError(res: Response): Promise<CustomDomainError> {

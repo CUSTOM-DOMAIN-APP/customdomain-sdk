@@ -227,8 +227,9 @@ Every field of `CheckDomainResult`. Optional fields are absent when the server d
 | `willFallbackToManual` | `boolean` | The server's prediction that the one-click rail would quietly become a manual record list for this domain. |
 | `apexSupported` | `boolean` | Provider fact: it can host a CNAME-like record at the zone root. |
 | `apexMessage` | `string` | This-domain verdict, non-empty exactly when the apply would refuse the record set. Gate warnings on this, not on `apexSupported`. |
-| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. `cloudBrowser` is present only when that rail is switched on for your application. |
-| `recommendedRail` | `"oauth" \| "domain_connect" \| "api_key" \| "manual"` | The rail the widget will pick. |
+| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser?, nameservers?, savedAccess? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. An available `oauth` rail also carries `flow` (the sign-in it runs) and `managed` (the connect keeps its credential). `cloudBrowser` is present only when that rail is switched on for your application; when its sign-in also makes a lasting API key, `key` says what the key can do beyond DNS (`rights`) and when it ends (`endsInDays`, `null` for never). `nameservers` is the DNS hosting verdict (`verdict`: `offered`, `offered_first`, `recommended` or `unavailable`, and `reason`), present when the application offers DNS hosting. `savedAccess` lists the kept provider keys that may act for the domain (`available`, `accounts` of `SavedAccess`, best first); a widget token gets `available: false` and no accounts, so a page never shows them. |
+| `recommendedRail` | `"saved_access" \| "oauth" \| "domain_connect" \| "cloud_browser" \| "api_key" \| "manual"` | The rail the widget will pick. `saved_access` only reaches an API key caller. |
+| `alsoProvider` | `{ provider, providerName, reason: "former_google_domains" }` | Set when the registrar and the nameservers name two providers: a former Google Domains name is Squarespace's now and keeps Google's nameservers, which Google Cloud DNS zones use too. `provider` is then the registrar's. |
 | `endUserAutomatic` | `boolean` | True when the recommended rail needs nothing typed by the end user. |
 | `blockedReason` | `"unregistered" \| "platform_subdomain"` | Set when no rail can connect the domain at all. |
 | `dashboardUrl` | `string` | Best-effort deep link into the provider's DNS panel for this zone. |
@@ -241,7 +242,8 @@ Every field of `CheckDomainResult`. Optional fields are absent when the server d
 | `managedDns` | `ManagedDnsAvailability \| null` | Whether CustomDomain™ can host the zone itself (managed DNS), with a `reason` when it cannot. |
 | `sandbox` | `boolean` | True when the token belongs to a test mode application. |
 
-The exported types `CheckDomainResult`, `RailInfo`, `IntegrationWarning` and
+The exported types `CheckDomainResult`, `RailInfo`, `RailKey`, `DnsHostingVerdict`,
+`SavedAccess`, `SavedAccessRail`, `AlsoProvider`, `IntegrationWarning` and
 `ManagedDnsAvailability` describe this shape, and `@customdomain/react` re-exports them.
 
 ## Errors and retries
