@@ -69,6 +69,8 @@ under **Changed**.
   `SavedAccessRail` and `AlsoProvider`; `@customdomain/react` re-exports them.
 - **Repository**: runtime tests of the new mapping, and of an answer without these fields leaving
   them absent, in `packages/sdk/test/sdk.test.mjs`.
+- **Repository**: CI runs on `ubuntu-24.04`. `ubuntu-latest` became 26.04 on 2026-10-25, where
+  Playwright 1.54.1 has no Chromium build, so the widget sim could not start.
 
 ### Changed
 
