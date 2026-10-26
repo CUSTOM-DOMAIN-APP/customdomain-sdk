@@ -924,9 +924,25 @@ export class CustomDomain {
     return this.open({ ...config, mode: "remove" });
   }
 
-  /** Open a shared/delegated setup link in the modal (incumbent loadSharedFlow). */
+  /**
+   * Open a shared/delegated setup link in the modal (incumbent loadSharedFlow).
+   *
+   * The link must be on the widget's own origin (`config.widgetBase`, else the hosted widget). The
+   * frame it names is sent the integrator's token in the init message, and a tenant hand-off page
+   * reads the link from its own query string, which anyone can write. A link on any other origin,
+   * or with any other scheme, throws a CustomDomainError and nothing is framed or closed.
+   */
   loadSharedFlow(url: string, config?: Partial<OpenConfig>): { close: () => void } {
-    const u = new URL(url, DEFAULT_WIDGET);
+    const widget = new URL(config?.widgetBase || DEFAULT_WIDGET);
+    const u = new URL(url, widget.origin);
+    // The scheme is checked as well as the origin: a blob: URL reports the origin of the page that
+    // made it, so the origin alone would let one through.
+    if (u.origin !== widget.origin || u.protocol !== widget.protocol) {
+      throw new CustomDomainError(
+        "InvalidLinkError",
+        "loadSharedFlow only opens a link on the widget's own origin, so the link was not opened"
+      );
+    }
     this.closeFrame();
     const frame = document.createElement("iframe");
     frame.src = u.toString();

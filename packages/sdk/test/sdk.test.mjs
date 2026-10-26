@@ -238,3 +238,89 @@ test("checkDomain leaves the newer rail fields absent when the control plane doe
   assert.equal(r.alsoProvider, undefined);
   assert.equal(r.recommendedRail, "oauth");
 });
+
+// loadSharedFlow() frames a link and then hands the integrator's token to that frame, so the link
+// must name the widget's own origin. The tenant hand-off page reads it from its query string
+// (`?link=`), which anyone can write.
+
+/** Record every iframe the SDK creates, so a refused link can be shown to have framed nothing. */
+function trackFrames() {
+  const frames = [];
+  document.createElement = () => {
+    const f = fakeFrame();
+    frames.push(f);
+    return f;
+  };
+  return frames;
+}
+
+test("loadSharedFlow frames a link on the widget origin and sends the token only there", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  sdk.loadSharedFlow(`${WIDGET}/share/tok_abc`, { applicationId: "app_1", token: "tok", widgetBase: WIDGET });
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0].src, `${WIDGET}/share/tok_abc`);
+  const payload = initPayload();
+  assert.equal(payload.token, "tok");
+  sdk.close();
+});
+
+test("loadSharedFlow resolves a relative link against the widget origin", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  sdk.loadSharedFlow("/share/tok_abc", { applicationId: "app_1", token: "tok", widgetBase: WIDGET });
+  assert.equal(frames[0].src, `${WIDGET}/share/tok_abc`);
+  sdk.close();
+});
+
+test("loadSharedFlow refuses a link on another origin and never frames it or sends it the token", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  const attacker = "https://evil.test";
+  assert.throws(
+    () => sdk.loadSharedFlow(`${attacker}/x`, { applicationId: "app_1", token: "tok", widgetBase: WIDGET }),
+    (err) => err.name === "CustomDomainError"
+  );
+  assert.equal(frames.length, 0, "a refused link was framed");
+  // Even if that origin posts `ready`, nothing is listening for it.
+  window.dispatchEvent(new MessageEvent("message", { data: { type: "customdomain:ready" }, origin: attacker }));
+  assert.equal(posted.length, 0, "the token was posted to a refused link");
+});
+
+test("loadSharedFlow refuses lookalike origins, a downgrade to http and non-web schemes", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  const cfg = { applicationId: "app_1", token: "tok", widgetBase: WIDGET };
+  for (const bad of [
+    "https://widget.test.evil.test/share/x",
+    "https://widget.test@evil.test/share/x",
+    "https://evil.test/https://widget.test/share/x",
+    "http://widget.test/share/x",
+    "//evil.test/share/x",
+    "javascript:alert(1)",
+    "data:text/html,<script>1</script>",
+    "blob:https://widget.test/00000000-0000-0000-0000-000000000000",
+  ]) {
+    assert.throws(() => sdk.loadSharedFlow(bad, cfg), (err) => err.name === "CustomDomainError", bad);
+  }
+  assert.equal(frames.length, 0);
+});
+
+test("loadSharedFlow checks against the hosted widget origin when no widgetBase is given", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  assert.throws(() => sdk.loadSharedFlow("https://evil.test/share/x", { token: "tok" }), (err) => err.name === "CustomDomainError");
+  assert.equal(frames.length, 0);
+  sdk.loadSharedFlow("https://app.customdomain.ai/share/x", { token: "tok" });
+  assert.equal(frames[0].src, "https://app.customdomain.ai/share/x");
+  sdk.close();
+});
+
+test("a refused loadSharedFlow leaves the modal that is already open running", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET });
+  assert.throws(() => sdk.loadSharedFlow("https://evil.test/x", { widgetBase: WIDGET }), (err) => err.name === "CustomDomainError");
+  assert.equal(frames[0].parentNode, document.body, "the open modal was torn down by a refused link");
+  sdk.close();
+});
