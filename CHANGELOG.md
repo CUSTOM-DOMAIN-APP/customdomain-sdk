@@ -38,6 +38,30 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ---
 
+## [Unreleased]
+
+`loadSharedFlow()` no longer sends the token you pass to a page of someone else's choosing. A
+self-hosted deploy whose share link is not on the widget's origin must change one setting, under
+**Changed**.
+
+### Security
+
+- **`customdomain-js`**: `loadSharedFlow()` opens only a link on the widget's own origin
+  (`config.widgetBase`, else `https://app.customdomain.ai`) and throws a `CustomDomainError` with
+  code `InvalidLinkError` for any other origin or scheme, so the token passed in `config` can no
+  longer be sent to an attacker chosen page. A tenant hand-off page reads the link from its own
+  query string, which anyone can write; before this, a crafted link was framed and then sent the
+  token in the widget's init message. The check also refuses a link that is missing, empty or not
+  a URL with the same error, and does so before anything is framed or an open modal is closed.
+
+### Changed
+
+- **`customdomain-js`**: a relative link given to `loadSharedFlow()` now resolves against
+  `widgetBase` instead of always against the hosted widget, and a link on any other origin now
+  throws instead of opening. A self-hosted deploy must serve its share link from the widget origin, which means
+  `widgetBase` must be the origin the link is built on. The hosted share links are on
+  `app.customdomain.ai`, so a default setup is unaffected.
+
 ## [0.5.6] (2026-10-25)
 
 The `checkDomain` answer now names everything `POST /v1/domains:check` sends since the product's
