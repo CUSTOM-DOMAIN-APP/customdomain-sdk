@@ -70,7 +70,7 @@ script exposes the same instance as `window.customdomain`.
 | `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. Resolves to `{ domain, inSync, records }`, one entry per record with the values observed. Throws like `checkDomain`. |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
 | `removeDomain(config)` | Open the widget on the removal flow for a connected domain. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`. Returns `{ close }`. See [Removing a domain](#removing-a-domain). |
-| `loadSharedFlow(url, config?)` | Resume a shared "finish setup" link with your branding. The link must be on the widget's own origin (`config.widgetBase`, or `https://app.customdomain.ai` by default), because the token you pass in `config` is sent to the page it opens. Any other link throws a `CustomDomainError` with code `InvalidLinkError` and opens nothing, so a hand-off page can pass it the `link` query parameter as it arrives. |
+| `loadSharedFlow(url, config?)` | Resume a shared "finish setup" link with your branding. The link must be on the widget's own origin (`config.widgetBase`, or `https://app.customdomain.ai` by default), because the token you pass in `config` is sent to the page it opens. Any other link, a missing one or one that is not a URL included, throws a `CustomDomainError` with code `InvalidLinkError` and opens nothing, so a hand-off page can pass it the `link` query parameter as it arrives. |
 | `load()` | Resolves at once: the npm build is ready as soon as it is imported. It exists so code written for the hosted loader (`await customdomain.load()`) runs unchanged. It does not open anything; `open()` does. |
 | `close()` | Close the widget. |
 

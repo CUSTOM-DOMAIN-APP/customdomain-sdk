@@ -306,6 +306,28 @@ test("loadSharedFlow refuses lookalike origins, a downgrade to http and non-web 
   assert.equal(frames.length, 0);
 });
 
+test("loadSharedFlow refuses a missing link or one that is not a URL with InvalidLinkError", () => {
+  const frames = trackFrames();
+  const sdk = new CustomDomain();
+  const cfg = { applicationId: "app_1", token: "tok", widgetBase: WIDGET };
+  // `null` is what URLSearchParams.get("link") returns when the page was opened without one.
+  for (const bad of [null, undefined, "", 42, "https://", "//", "http://[", "https://exa mple.test/x"]) {
+    assert.throws(
+      () => sdk.loadSharedFlow(bad, cfg),
+      (err) => err.name === "CustomDomainError" && err.code === "InvalidLinkError",
+      String(bad)
+    );
+  }
+  assert.equal(frames.length, 0);
+  // The same code for a well formed link on another origin.
+  assert.throws(
+    () => sdk.loadSharedFlow("https://evil.test/x", cfg),
+    (err) => err.name === "CustomDomainError" && err.code === "InvalidLinkError"
+  );
+  window.dispatchEvent(new MessageEvent("message", { data: { type: "customdomain:ready" }, origin: WIDGET }));
+  assert.equal(posted.length, 0, "the token was posted after a refused link");
+});
+
 test("loadSharedFlow checks against the hosted widget origin when no widgetBase is given", () => {
   const frames = trackFrames();
   const sdk = new CustomDomain();
