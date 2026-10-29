@@ -58,8 +58,8 @@ self-hosted deploy whose share link is not on the widget's origin must change on
 
 - **`customdomain-js`**: a relative link given to `loadSharedFlow()` now resolves against
   `widgetBase` instead of always against the hosted widget, and a link on any other origin now
-  throws instead of opening. A self-hosted deploy must serve its share link from the widget origin, which means
-  `widgetBase` must be the origin the link is built on. The hosted share links are on
+  throws instead of opening. A self-hosted deploy must serve its share link from the widget origin, which
+  means `widgetBase` must be the origin the link is built on. The hosted share links are on
   `app.customdomain.ai`, so a default setup is unaffected.
 
 ## [0.5.6] (2026-10-25)
