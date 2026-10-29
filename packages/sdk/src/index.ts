@@ -924,9 +924,34 @@ export class CustomDomain {
     return this.open({ ...config, mode: "remove" });
   }
 
-  /** Open a shared/delegated setup link in the modal (incumbent loadSharedFlow). */
+  /**
+   * Open a shared/delegated setup link in the modal (incumbent loadSharedFlow).
+   *
+   * The link must be on the widget's own origin (`config.widgetBase`, else the hosted widget). The
+   * frame it names is sent the integrator's token in the init message, and a tenant hand-off page
+   * reads the link from its own query string, which anyone can write. A link that is missing, is
+   * not a URL, is on any other origin or has any other scheme throws a CustomDomainError with code
+   * `InvalidLinkError`, and nothing is framed or closed.
+   */
   loadSharedFlow(url: string, config?: Partial<OpenConfig>): { close: () => void } {
-    const u = new URL(url, DEFAULT_WIDGET);
+    const widget = new URL(config?.widgetBase || DEFAULT_WIDGET);
+    const refused = () =>
+      new CustomDomainError(
+        "InvalidLinkError",
+        "loadSharedFlow only opens a link on the widget's own origin, so the link was not opened"
+      );
+    // A hand-off page passes the `link` query parameter as it arrives, so it can be missing
+    // (null) or not a URL at all; both are refused the same way as a link on another origin.
+    if (typeof url !== "string" || url === "") throw refused();
+    let u: URL;
+    try {
+      u = new URL(url, widget.origin);
+    } catch {
+      throw refused();
+    }
+    // The scheme is checked as well as the origin: a blob: URL reports the origin of the page that
+    // made it, so the origin alone would let one through.
+    if (u.origin !== widget.origin || u.protocol !== widget.protocol) throw refused();
     this.closeFrame();
     const frame = document.createElement("iframe");
     frame.src = u.toString();
