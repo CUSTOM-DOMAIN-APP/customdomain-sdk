@@ -40,6 +40,8 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
+## [0.5.7] (2026-10-29)
+
 `loadSharedFlow()` no longer sends the token you pass to a page of someone else's choosing. A
 self-hosted deploy whose share link is not on the widget's origin must change one setting, under
 **Changed**.
