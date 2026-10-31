@@ -32,6 +32,7 @@ export type {
   SetupType,
   WhiteLabel,
   OpenConfig,
+  TokenRequest,
   SuccessResult,
   StepDetail,
   CloseDetail,

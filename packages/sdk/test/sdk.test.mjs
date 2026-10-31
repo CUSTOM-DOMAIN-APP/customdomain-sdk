@@ -346,3 +346,148 @@ test("a refused loadSharedFlow leaves the modal that is already open running", (
   assert.equal(frames[0].parentNode, document.body, "the open modal was torn down by a refused link");
   sdk.close();
 });
+
+// getToken(ctx): when the widget's token expires, or is not bound to the domain the end user typed,
+// it posts `customdomain:token-expired` with `{ domain, reason }`. The SDK hands the host a
+// TokenRequest built from that payload and posts the answer back to the frame as `customdomain:token`.
+
+/** Let the SDK's promise chain around getToken settle (it runs in microtasks). */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+/** The `customdomain:token` answers the SDK has posted into the widget frame, with where they went. */
+const tokenAnswers = () =>
+  posted.filter((p) => p.message.type === "customdomain:token").map((p) => ({ payload: p.message.payload, targetOrigin: p.targetOrigin }));
+
+/** Open with a getToken that records its arguments, then deliver one token-expired message. */
+async function askForToken(payload, getToken) {
+  const calls = [];
+  const sdk = new CustomDomain();
+  sdk.open({
+    applicationId: "app_1",
+    token: "tok",
+    widgetBase: WIDGET,
+    getToken: (...args) => {
+      calls.push(args);
+      return getToken ? getToken(...args) : "fresh";
+    },
+  });
+  initPayload();
+  fromWidget("customdomain:token-expired", payload);
+  await settle();
+  sdk.close();
+  return calls;
+}
+
+test("a token-expired message with a domain and reason \"bind\" calls getToken with that object and posts its token back", async () => {
+  const calls = await askForToken({ domain: "shop.example.com", reason: "bind" }, () => "tok_bound");
+  assert.deepEqual(calls, [[{ domain: "shop.example.com", reason: "bind" }]]);
+  assert.deepEqual(tokenAnswers(), [{ payload: { token: "tok_bound" }, targetOrigin: WIDGET }]);
+});
+
+test("a getToken that returns a promise is awaited, and reason \"expired\" is passed with its domain", async () => {
+  const calls = await askForToken({ domain: "acme.com", reason: "expired" }, async () => "tok_later");
+  assert.deepEqual(calls, [[{ domain: "acme.com", reason: "expired" }]]);
+  assert.deepEqual(tokenAnswers(), [{ payload: { token: "tok_later" }, targetOrigin: WIDGET }]);
+});
+
+test("an empty payload, as the older hosted widget sends, asks for reason \"expired\" and names no domain", async () => {
+  const calls = await askForToken({});
+  assert.deepEqual(calls, [[{ reason: "expired" }]]);
+  assert.equal("domain" in calls[0][0], false, "the request carries a domain key with nothing in it");
+  assert.deepEqual(tokenAnswers(), [{ payload: { token: "fresh" }, targetOrigin: WIDGET }]);
+});
+
+test("a malformed token-expired payload asks for reason \"expired\" and names no domain", async () => {
+  for (const bad of [
+    undefined,
+    null,
+    "shop.example.com",
+    42,
+    true,
+    [],
+    ["shop.example.com"],
+    { domain: 42, reason: 7 },
+    { domain: { host: "shop.example.com" }, reason: { value: "bind" } },
+    { domain: ["shop.example.com"], reason: null },
+    { domain: null, reason: "BIND" },
+    { reason: "rebind" },
+    { domain: "", reason: "" },
+  ]) {
+    posted = [];
+    const calls = await askForToken(bad);
+    assert.deepEqual(calls, [[{ reason: "expired" }]], JSON.stringify(bad) ?? String(bad));
+    assert.equal(tokenAnswers().length, 1, "the host's token was not posted back");
+  }
+});
+
+test("a domain of 253 characters is passed and one of 254 is dropped, keeping the reason", async () => {
+  const longest = `${"a".repeat(241)}.example.com`;
+  assert.equal(longest.length, 253);
+  assert.deepEqual(await askForToken({ domain: longest, reason: "bind" }), [[{ domain: longest, reason: "bind" }]]);
+
+  const tooLong = `${"a".repeat(242)}.example.com`;
+  assert.equal(tooLong.length, 254);
+  posted = [];
+  const calls = await askForToken({ domain: tooLong, reason: "bind" });
+  assert.deepEqual(calls, [[{ reason: "bind" }]]);
+  assert.equal("domain" in calls[0][0], false);
+  assert.equal(tokenAnswers().length, 1, "the host's token was not posted back");
+});
+
+test("a getToken that takes no argument still answers, whatever the widget sent", async () => {
+  const sdk = new CustomDomain();
+  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET, getToken: () => "tok_zero" });
+  initPayload();
+  fromWidget("customdomain:token-expired", { domain: "shop.example.com", reason: "bind" });
+  await settle();
+  fromWidget("customdomain:token-expired", {});
+  await settle();
+  assert.deepEqual(tokenAnswers(), [
+    { payload: { token: "tok_zero" }, targetOrigin: WIDGET },
+    { payload: { token: "tok_zero" }, targetOrigin: WIDGET },
+  ]);
+  sdk.close();
+});
+
+test("without a getToken the widget is told there is no token, and open() says it cannot refresh", async () => {
+  const sdk = new CustomDomain();
+  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET });
+  assert.equal(initPayload().config.canRefreshToken, false);
+  fromWidget("customdomain:token-expired", { domain: "shop.example.com", reason: "bind" });
+  await settle();
+  assert.deepEqual(tokenAnswers(), [{ payload: { token: null }, targetOrigin: WIDGET }]);
+  sdk.close();
+});
+
+test("a getToken that throws, rejects or returns no string answers null", async () => {
+  for (const getToken of [
+    () => {
+      throw new Error("boom");
+    },
+    () => Promise.reject(new Error("boom")),
+    () => "",
+    () => undefined,
+    () => 42,
+  ]) {
+    posted = [];
+    await askForToken({ domain: "shop.example.com", reason: "bind" }, getToken);
+    assert.deepEqual(tokenAnswers(), [{ payload: { token: null }, targetOrigin: WIDGET }], String(getToken));
+  }
+});
+
+test("a token-expired message from another origin is ignored", async () => {
+  const calls = [];
+  const sdk = new CustomDomain();
+  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET, getToken: (...a) => (calls.push(a), "stolen") });
+  initPayload();
+  window.dispatchEvent(
+    new MessageEvent("message", {
+      data: { type: "customdomain:token-expired", payload: { domain: "shop.example.com", reason: "bind" } },
+      origin: "https://elsewhere.test",
+    })
+  );
+  await settle();
+  assert.deepEqual(calls, []);
+  assert.deepEqual(tokenAnswers(), []);
+  sdk.close();
+});

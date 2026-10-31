@@ -19,6 +19,7 @@ import type {
   PurchaseInitiated as SdkPurchaseInitiated,
   RemovedResult as SdkRemovedResult,
   SuccessResult as SdkSuccessResult,
+  TokenRequest as SdkTokenRequest,
 } from "customdomain-js";
 import type {
   CustomdomainEventHandlers,
@@ -26,6 +27,7 @@ import type {
   RemovedResult,
   SetupType,
   SuccessResult,
+  TokenRequest,
   UseCustomdomainOptions,
   UseCustomdomainResult,
 } from "./index";
@@ -98,6 +100,24 @@ const _reconnectIsASetupType: "reconnect" extends SetupType ? true : never = tru
 // @ts-expect-error a mode the widget does not know is refused here too
 const _unknownMode: UseCustomdomainOptions = { applicationId: "app_1", token: "t", mode: "renew" };
 
+// getToken(ctx): the widget asks for a token for the domain the end user typed (reason "bind") as
+// well as for a fresh one (reason "expired"), and the SDK hands the host a TokenRequest saying
+// which. The hook's `getToken` must be the SDK's own, so a host written against the hook gets the
+// request, and the request type must be the SDK's, re-exported. A function with no parameter
+// (the shape getToken had before) must still be accepted.
+const _tokenRequestIsReExported: Exact<TokenRequest, SdkTokenRequest> = true;
+const _getTokenIsTheSdks: Exact<UseCustomdomainOptions["getToken"], OpenConfig["getToken"]> = true;
+const _getTokenReadsTheRequest: UseCustomdomainOptions = {
+  applicationId: "app_1",
+  token: "t",
+  getToken: async (ctx) => (ctx?.reason === "bind" && ctx.domain ? `bound:${ctx.domain}` : "fresh"),
+};
+const _getTokenTakesNoArgument: UseCustomdomainOptions = { applicationId: "app_1", token: "t", getToken: () => "fresh" };
+const _getTokenAsOverride: NonNullable<Parameters<UseCustomdomainResult["open"]>[0]> = {
+  getToken: (ctx?: TokenRequest) => ctx?.domain ?? "fresh",
+};
+const _reasonsAreTheWidgets: Exact<TokenRequest["reason"], "expired" | "bind"> = true;
+
 export type {};
 void _modeIsTheSdks;
 void _reconnectInOptions;
@@ -106,6 +126,12 @@ void _reconnectSuccessIsTyped;
 void _successSaysReconnected;
 void _reconnectIsASetupType;
 void _unknownMode;
+void _tokenRequestIsReExported;
+void _getTokenIsTheSdks;
+void _getTokenReadsTheRequest;
+void _getTokenTakesNoArgument;
+void _getTokenAsOverride;
+void _reasonsAreTheWidgets;
 void _payloadIsReExported;
 void _removedPayloadIsReExported;
 void _removedHandlerExists;

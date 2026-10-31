@@ -18,11 +18,13 @@ verification and ACME certificate issuance happen server side.
 - [customdomain-js README](packages/sdk/README.md): install, quickstart, the `window.customdomain`
   methods (`open(config)`, `checkDomain(domain, { token })`, `checkRecords(domain, { token,
   dnsRecords })`, `purchaseDomain(config)`, `loadSharedFlow(url)`, `load()`, `close()`), the
-  options (including `getToken` for silent widget token refresh and `wwwRedirect` for root
-  domains), and the window events `customdomain:success`, `customdomain:close`,
-  `customdomain:step`, `customdomain:error`, `customdomain:fallback`, `customdomain:purchase`,
-  `customdomain:shared`, `customdomain:request-close`, `customdomain:doc-click`. Includes a
-  `window.entri` compatibility shim for drop-in migration.
+  options (including `getToken` for silent widget token refresh, called with a `TokenRequest`
+  `{ domain?, reason: "expired" | "bind" }` so it can also mint a token bound to the domain the
+  end user typed, and `wwwRedirect` for root domains), and the window events
+  `customdomain:success`, `customdomain:close`, `customdomain:step`, `customdomain:error`,
+  `customdomain:fallback`, `customdomain:purchase`, `customdomain:shared`,
+  `customdomain:request-close`, `customdomain:doc-click`. Includes a `window.entri`
+  compatibility shim for drop-in migration.
 - [@customdomain/react README](packages/react/README.md): the `useCustomdomain()` hook and
   `<CustomdomainConnect>` component, the callback-prop-to-window-event mapping, and selling
   domains with `purchaseDomain()` and `onPurchase`.

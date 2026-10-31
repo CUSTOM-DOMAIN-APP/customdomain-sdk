@@ -45,7 +45,8 @@ export function ConnectDomain({ token }: { token: string }) {
     <CustomdomainConnect
       applicationId="app_123"
       token={token}
-      // Optional: return a fresh token when the first one expires mid-setup.
+      // Optional: return a fresh token when the first one expires mid-setup, or one for the domain
+      // the user typed (ctx.domain; see the getToken row under "Callback props").
       getToken={() =>
         fetch("/api/customdomain/token", { method: "POST" })
           .then((r) => r.json())
@@ -109,7 +110,7 @@ Every other prop is passed straight to the SDK's `OpenConfig`, including `domain
 
 | Prop | What it does |
 |---|---|
-| `getToken` | Returns a fresh widget token when the current one expires in the middle of a setup, so long manual setups never stop. |
+| `getToken` | Returns a fresh widget token when the current one expires in the middle of a setup, so long manual setups never stop. It receives a `TokenRequest` (`{ domain?, reason }`): `reason` is `"expired"`, or `"bind"` when the widget needs a token bound to the `domain` the user typed, which you mint with that `domain` and your own `end_user_ref`. A function with no parameter still works. See [Tokens for the domain the user typed](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/packages/sdk/README.md#tokens-for-the-domain-the-user-typed). |
 | `wwwRedirect` | Root domains only: `true` connects the root and `www` and redirects the root to `www`; `false` connects the root alone; unset lets the user choose. |
 | `onError` | Receives a `CustomDomainError` when the widget shows an error (also dispatched as `customdomain:error`). |
 | `onFallback` | Receives a `FallbackDetail` (`{ reason, provider?, screen?, message? }`) when the widget sends the user to copy records by hand (also dispatched as `customdomain:fallback`). |
@@ -117,7 +118,7 @@ Every other prop is passed straight to the SDK's `OpenConfig`, including `domain
 | `connectionId` | For a removal or a reconnect: the connection, when you kept its id. Otherwise the domain is looked up. |
 
 Every public type is re-exported from `customdomain-js`, so your editor autocompletes every option:
-`OpenConfig`, `WhiteLabel`, `DNSRecord`, `DNSRecordType`, `SetupType`, `SuccessResult`, `StepDetail`,
+`OpenConfig`, `TokenRequest`, `WhiteLabel`, `DNSRecord`, `DNSRecordType`, `SetupType`, `SuccessResult`, `StepDetail`,
 `CloseDetail`, `FallbackDetail`, `PurchaseInitiated`, `RemovedResult`, `CheckDomainResult`, `RailInfo`,
 `IntegrationWarning`, `ManagedDnsAvailability` and `CheckRecordsResult`, plus the `CustomDomain` class
 and `CustomDomainError`.
