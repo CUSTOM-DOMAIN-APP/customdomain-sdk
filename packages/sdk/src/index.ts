@@ -215,11 +215,14 @@ export interface OpenConfig {
    * stopping. Without it, the widget tells the user they can close the window
    * and the connection still finishes on its own once the records appear.
    *
-   * The widget also asks when the token in use is not bound to the domain the
-   * end user typed (`reason: "bind"`). The argument (a `TokenRequest`) says
-   * which domain, so you can mint the token with that `domain` and your own
-   * `end_user_ref`. A function that takes no argument keeps working: it
-   * simply ignores the request.
+   * The argument is a `TokenRequest`, built from the payload of the widget's
+   * request. When the widget names the domain the end user typed, it carries
+   * that `domain` and, if the token in use is not bound to it, `reason: "bind"`,
+   * so you can mint the token with that `domain` and your own `end_user_ref`.
+   * A widget build that sends no payload reads as `{ reason: "expired" }` with
+   * no `domain`, so `"bind"` is not guaranteed: always handle a plain expiry.
+   * A function that takes no argument keeps working: it simply ignores the
+   * request.
    */
   getToken?: (ctx?: TokenRequest) => string | Promise<string>;
   /**
@@ -494,8 +497,8 @@ export interface RailInfo {
    * `caller_cannot_start` (this caller could never start it: an agent, a plain
    * API call without the console, or a role that cannot write connections) and
    * `token_not_bound` (the widget token is bound to no domain, or only to other
-   * domains: mint one with `domain` and `end_user_ref`, which is what
-   * `OpenConfig.getToken` is asked for with `reason: "bind"`). The type stays
+   * domains: mint one with `domain` and `end_user_ref`, which is the case a
+   * `getToken` request with `reason: "bind"` is about). The type stays
    * `string`: new reasons are added without a new SDK release.
    */
   reason?: string;
@@ -601,6 +604,8 @@ const MAX_TOKEN_REQUEST_DOMAIN = 253;
  * frame, so it is untrusted: anything that is not an object, or a field of the wrong type,
  * reads as "expired" with no domain. `domain` is left off the object (not set to undefined) when
  * it is dropped, so a host that spreads or compares the request sees only what the widget sent.
+ * Reading a hostile payload (a getter that throws) can throw, so call it inside the promise chain
+ * that answers the widget, never before it.
  */
 function tokenRequestFrom(payload: unknown): TokenRequest {
   const p = payload && typeof payload === "object" ? (payload as { domain?: unknown; reason?: unknown }) : {};
@@ -931,12 +936,12 @@ export class CustomDomain {
           dispatch(EVT.removed, payload);
           break;
         case "customdomain:token-expired": {
-          // The widget needs another token: its own expired mid-setup, or it is
-          // not bound to the domain the end user typed. Ask the integrator for
-          // one, telling it which (older hosted widgets send an empty payload,
-          // which reads as a plain expiry); answer with null when there is no
-          // getToken so the widget moves straight to "you can close this
-          // window" instead of waiting.
+          // The widget needs another token: its own expired mid-setup, or (when
+          // it says so in the payload) it is not bound to the domain the end
+          // user typed. Ask the integrator for one, telling it which; a widget
+          // that sends no payload reads as a plain expiry. Answer with null when
+          // there is no getToken so the widget moves straight to "you can close
+          // this window" instead of waiting.
           const reply = (token: string | null) => {
             try {
               frame.contentWindow?.postMessage({ type: "customdomain:token", payload: { token } }, widgetBase);
@@ -948,9 +953,12 @@ export class CustomDomain {
             reply(null);
             break;
           }
-          const request = tokenRequestFrom(payload);
+          // The request is built inside the chain, not before it: the payload comes
+          // from a frame, and a payload that throws when read must still end in a
+          // reply (null) instead of escaping this handler and leaving the widget
+          // waiting for a token that never comes.
           Promise.resolve()
-            .then(() => config.getToken!(request))
+            .then(() => config.getToken!(tokenRequestFrom(payload)))
             .then((tok) => reply(typeof tok === "string" && tok ? tok : null))
             .catch(() => reply(null));
           break;

@@ -42,22 +42,24 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [0.5.8] (2026-10-31)
 
-`getToken` is now told what the widget is asking for: the domain the end user typed, and whether
-the token ran out or is not bound to that domain. Mint the token for that domain and your user
-and the secure sign-in is accepted for it. Nothing was removed, and a `getToken` that takes no
-argument works as before; one change to watch for is under **Changed**.
+`getToken` now receives a `TokenRequest` when the widget sends one: the domain the end user typed,
+and whether the token ran out or is not bound to that domain. Mint the token for that domain and
+your user and the secure sign-in is accepted for it. The hosted widget does not send them yet, so
+read **Compatibility** below before relying on `reason: "bind"`. Nothing was removed, and a
+`getToken` that takes no argument works as before; one change to watch for is under **Changed**.
 
 ### Added
 
 - **`customdomain-js`**: `OpenConfig.getToken` is now `(ctx?: TokenRequest) => string | Promise<string>`.
-  The widget posts `customdomain:token-expired` with `{ domain, reason }` when its token expired
-  (`reason: "expired"`) or is not bound to the domain the end user typed (`reason: "bind"`), and
-  the SDK calls `getToken` with that as a `TokenRequest`: `{ domain?: string; reason: "expired" |
-  "bind" }`. The payload comes from a frame, so it is checked: `domain` is passed only when it is a
-  non-empty string of at most 253 characters, and `reason` is `"bind"` only for exactly that word.
-  Anything else, including the empty payload an older hosted widget sends, reads as
-  `{ reason: "expired" }` with no `domain` key. The call is still answered with `null` when there
-  is no `getToken`, and when it throws, rejects or returns no string.
+  When the widget posts `customdomain:token-expired` with `{ domain, reason }` (`reason: "expired"`
+  for a token that ran out, `reason: "bind"` for one that is not bound to the domain the end user
+  typed), the SDK calls `getToken` with that as a `TokenRequest`: `{ domain?: string; reason:
+  "expired" | "bind" }`. The payload comes from a frame, so it is checked: `domain` is passed only
+  when it is a non-empty string of at most 253 characters, and `reason` is `"bind"` only for exactly
+  that word. Anything else, including the empty payload the hosted widget sends until it is
+  updated, reads as `{ reason: "expired" }` with no `domain` key. The call is still answered with
+  `null` when there is no `getToken`, and when it throws, rejects or returns no string. A payload
+  that throws when it is read is answered with `null` too, so the widget is never left waiting.
 - **`customdomain-js`**: the exported type `TokenRequest`.
 - **`@customdomain/react`**: re-exports `TokenRequest`. The `getToken` option of `useCustomdomain()`
   and `<CustomdomainConnect>` is the SDK's own, so it takes the same request, and its README says so.
@@ -66,12 +68,12 @@ argument works as before; one change to watch for is under **Changed**.
   `rails.cloudBrowser` (the secure sign-in) gives for the caller rather than the provider:
   `caller_cannot_start` (an agent, a plain API call without the console, or a role that cannot
   write connections) and `token_not_bound` (the widget token is bound to no domain, or only to
-  other domains, which is what `getToken` is asked to fix with `reason: "bind"`). The type is
-  still `string`.
+  other domains, which is the case a `getToken` request with `reason: "bind"` is about). The type
+  is still `string`.
 - **Repository**: runtime tests of the request `getToken` receives (a payload passed through, a
-  malformed one, the 253 character limit, a function with no parameter, no `getToken`, a throw or
-  a reject) in `packages/sdk/test/sdk.test.mjs`, and compile time asserts in
-  `packages/react/src/sdk-parity.assert.ts` that the hook takes the same `getToken`.
+  malformed one, a payload that throws when read, the 253 character limit, a function with no
+  parameter, no `getToken`, a throw or a reject) in `packages/sdk/test/sdk.test.mjs`, and compile
+  time asserts in `packages/react/src/sdk-parity.assert.ts` that the hook takes the same `getToken`.
 
 ### Changed
 
@@ -79,6 +81,16 @@ argument works as before; one change to watch for is under **Changed**.
   A function with no parameter ignores it. A function whose first parameter means something else
   (a retry count, say) would receive the request in it: TypeScript refuses such a function until
   its first parameter takes a `TokenRequest`, and plain JavaScript gets the object.
+
+### Compatibility
+
+- The hosted widget does not send the domain or the reason yet: on `customdomain:token-expired` it
+  posts an empty payload. Until the hosted widget is updated, `getToken` is called with
+  `{ reason: "expired" }` and never with `reason: "bind"`, and `domain` is absent. Handle a plain
+  expiry first; treat `domain` and `"bind"` as something a later widget adds.
+- A release reaches the hosted bundle only after it is vendored into the product repository and
+  the product deploys, so installing 0.5.8 does not change what the hosted widget sends. See
+  [The two repositories](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/CHANGELOG.md#the-two-repositories).
 
 ## [0.5.7] (2026-10-29)
 

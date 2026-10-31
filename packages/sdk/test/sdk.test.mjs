@@ -475,6 +475,39 @@ test("a getToken that throws, rejects or returns no string answers null", async 
   }
 });
 
+test("a payload that throws when it is read still gets a reply, and the next message is still handled", async () => {
+  const throwing = () => {
+    throw new Error("hostile getter");
+  };
+  for (const payload of [
+    Object.defineProperty({ reason: "bind" }, "domain", { enumerable: true, get: throwing }),
+    Object.defineProperty({ domain: "shop.example.com" }, "reason", { enumerable: true, get: throwing }),
+    new Proxy({}, { get: throwing }),
+  ]) {
+    posted = [];
+    const calls = [];
+    const sdk = new CustomDomain();
+    sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET, getToken: (...a) => (calls.push(a), "tok_next") });
+    initPayload();
+    fromWidget("customdomain:token-expired", payload);
+    await settle();
+    // The widget waits for exactly one answer. A token (the request was readable after all) or null (it
+    // was not) both let it go on; no answer would leave it waiting for a token that never comes.
+    const answers = tokenAnswers();
+    assert.equal(answers.length, 1, "the widget got no answer to its token request");
+    assert.ok(answers[0].payload.token === null || typeof answers[0].payload.token === "string");
+    assert.equal(answers[0].targetOrigin, WIDGET);
+    assert.ok(calls.length <= 1);
+
+    // The listener is still there for the next, well formed, request.
+    fromWidget("customdomain:token-expired", { domain: "shop.example.com", reason: "bind" });
+    await settle();
+    assert.deepEqual(tokenAnswers().at(-1), { payload: { token: "tok_next" }, targetOrigin: WIDGET });
+    assert.deepEqual(calls.at(-1), [{ domain: "shop.example.com", reason: "bind" }]);
+    sdk.close();
+  }
+});
+
 test("a token-expired message from another origin is ignored", async () => {
   const calls = [];
   const sdk = new CustomDomain();

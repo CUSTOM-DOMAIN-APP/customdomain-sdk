@@ -72,11 +72,12 @@ window.addEventListener("customdomain:success", (e) => {
 });
 ```
 
-`getToken` is also how the widget asks for a token for the domain the user typed. It is called with
-`{ domain, reason }`: `reason` is `"expired"` for a token that ran out and `"bind"` when the token in
-use is not bound to `domain`. Mint the new token for that domain and for your own user (`domain` and
-`end_user_ref` on `POST /v1/tokens`), and the secure sign-in is accepted for it. A `getToken` with
-no parameter keeps working. See
+`getToken` can also be how the widget asks for a token for the domain the user typed. When the widget
+sends the domain and a reason, `getToken` is called with `{ domain, reason }`: `reason` is `"expired"`
+for a token that ran out and `"bind"` when the token in use is not bound to `domain`. Mint the new
+token for that domain and for your own user (`domain` and `end_user_ref` on `POST /v1/tokens`), and
+the secure sign-in is accepted for it. The hosted widget does not send them yet: until it does,
+`getToken` is called with `{ reason: "expired" }`. A `getToken` with no parameter keeps working. See
 [Tokens for the domain the user typed](packages/sdk/README.md#tokens-for-the-domain-the-user-typed).
 
 Check the live provider census the numbers above come from:
@@ -101,7 +102,7 @@ caller is signed in before you answer:
 // app/api/customdomain-token/route.ts
 export async function POST(req: Request) {
   // Check your own session here: only signed-in users should get a token.
-  // The widget asks for a token for the domain the user typed: bind the token to it.
+  // When the widget names the domain the user typed, bind the token to it.
   const body = await req.json().catch(() => ({}));
   const domain = typeof body?.domain === "string" ? body.domain : undefined;
   const res = await fetch("https://app.customdomain.ai/api/widget-token", {
@@ -141,7 +142,7 @@ export function ConnectDomainButton({ applicationId, userId }: { applicationId: 
   const { open, ready } = useCustomdomain({
     applicationId,
     token: "", // open() below passes a fresh one
-    // Keeps long manual setups alive, and binds the token to the domain the user typed:
+    // Keeps long manual setups alive, and binds the token to the domain when the widget names one:
     getToken: async (ctx) => (await fetchToken(ctx?.domain)).token,
     endUserRef: userId,
     onSuccess: ({ domain }) => console.log(`${domain} connected`),

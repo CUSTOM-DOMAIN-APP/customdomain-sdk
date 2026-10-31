@@ -84,7 +84,7 @@ The ones most integrations use. The full list is in the
 |---|---|---|
 | `applicationId` (required) | `string` | Your public application id. |
 | `token` (required) | `string` | A widget token minted on your server with `POST /v1/tokens`. |
-| `getToken` | `(ctx?: TokenRequest) => string \| Promise<string>` | Returns a fresh widget token. Widget tokens last about 15 minutes, and a user adding DNS records by hand often takes longer. With `getToken` the widget refreshes silently instead of stopping; without it, the widget tells the user they can close the window, and the connection still finishes on its own once the records appear. The widget also calls it for a token bound to the domain the user typed; `ctx` says which, see [Tokens for the domain the user typed](#tokens-for-the-domain-the-user-typed). A function with no parameter works as before. |
+| `getToken` | `(ctx?: TokenRequest) => string \| Promise<string>` | Returns a fresh widget token. Widget tokens last about 15 minutes, and a user adding DNS records by hand often takes longer. With `getToken` the widget refreshes silently instead of stopping; without it, the widget tells the user they can close the window, and the connection still finishes on its own once the records appear. When the widget names the domain the user typed, `ctx` carries it, so you can mint a token bound to that domain; see [Tokens for the domain the user typed](#tokens-for-the-domain-the-user-typed). A function with no parameter works as before. |
 | `wwwRedirect` | `boolean` | Root domains only. `true` connects the root and `www` and redirects the root to `www`; `false` connects the root alone; leave it unset to let the user choose. |
 | `domain` / `prefilledDomain` | `string` / `string \| string[]` | Pre-fill the domain. An array runs a multi-domain flow. |
 | `dnsRecords` | `DNSRecord[] \| Record<string, DNSRecord[]>` | Only DKIM records are used (`purpose: "dkim"`, or a host under `_domainkey`); any other record is ignored, and `open()` says so once in the console. The records a customer is shown come from the server: set where domains point with `PUT /v1/applications/{id}/connect-target`, or one connection's records with `PUT /v1/connections/{id}/records`. |
@@ -102,12 +102,12 @@ A widget token can be bound to one domain and one end user: `POST /v1/tokens` ta
 `end_user_ref`. The secure sign-in is refused for a token that is bound to no domain, or only to
 other domains: `checkDomain` answers `rails.cloudBrowser.reason: "token_not_bound"`, and starting
 the sign-in with that token is refused with a `403` of the same name. The user types the domain
-after your page has minted its token, so the widget asks `getToken` for a token for it. `getToken`
-is called with a `TokenRequest`:
+after your page has minted its token, so a widget that knows the domain can ask `getToken` for a
+token for it. `getToken` is called with a `TokenRequest`, built from what the widget sends:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `domain` | `string`, optional | The domain the user typed, which the token should be bound to. Absent when the widget names none; a value that is not a non-empty string of at most 253 characters is dropped. |
+| `domain` | `string`, optional | The domain the user typed, which the token should be bound to. Absent when the widget names none (the hosted widget names none yet, see the end of this section); a value that is not a non-empty string of at most 253 characters is dropped. |
 | `reason` | `"bind" \| "expired"` | `bind`: the token in use is not bound to `domain`. `expired`: the token ran out; when `domain` is set, mint the new one for it too so it stays bound. Anything else the widget sends reads as `expired`. |
 
 ```ts
@@ -136,8 +136,11 @@ your server knows who the user is. The `domain` is only ever a name to bind the 
 it is a hostname before you pass it on.
 
 A `getToken` that takes no argument keeps working: it ignores the request and answers a fresh
-token, which is all an expiry needs. A hosted widget build that predates this request sends an
-empty payload, and `getToken` then gets `{ reason: "expired" }`.
+token, which is all an expiry needs. A widget that sends no payload, or one the SDK cannot read,
+gets `getToken` called with `{ reason: "expired" }`. Until the hosted widget is updated to send the
+domain and the reason, that is what it always does, so `getToken` is called with
+`{ reason: "expired" }` and never `"bind"`, and a release reaches the hosted bundle only after it
+is vendored (see [The two repositories](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/CHANGELOG.md#the-two-repositories)).
 
 ## Events
 
