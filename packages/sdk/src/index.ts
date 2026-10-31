@@ -88,6 +88,27 @@ export interface WhiteLabel {
 }
 
 /**
+ * What the widget is asking `OpenConfig.getToken` for, built from the payload of its
+ * `customdomain:token-expired` message. The SDK checks both fields: `domain` is a usable
+ * string or absent, and `reason` is one of the two words below.
+ */
+export interface TokenRequest {
+  /**
+   * The domain the end user typed, which the token should be bound to: mint it with this
+   * `domain` and your own `end_user_ref`. Absent when the widget names none, or sent
+   * something other than a non-empty string of at most 253 characters.
+   */
+  domain?: string;
+  /**
+   * Why the widget is asking. `"bind"`: the token in use is not bound to `domain`, which a
+   * domain check reports as `token_not_bound`; answer with a token minted for that domain.
+   * `"expired"`: the token ran out, or the message gave no reason this SDK knows; when
+   * `domain` is set, mint the new token for it too, so it stays bound.
+   */
+  reason: "expired" | "bind";
+}
+
+/**
  * OpenConfig is IncumbentConfig-era-compatible (spec §1.6): incumbent key names are
  * accepted directly; CustomDomain™-native aliases noted inline.
  */
@@ -193,8 +214,17 @@ export interface OpenConfig {
    * often takes longer; with getToken the widget refreshes silently instead of
    * stopping. Without it, the widget tells the user they can close the window
    * and the connection still finishes on its own once the records appear.
+   *
+   * The argument is a `TokenRequest`, built from the payload of the widget's
+   * request. When the widget names the domain the end user typed, it carries
+   * that `domain` and, if the token in use is not bound to it, `reason: "bind"`,
+   * so you can mint the token with that `domain` and your own `end_user_ref`.
+   * A widget build that sends no payload reads as `{ reason: "expired" }` with
+   * no `domain`, so `"bind"` is not guaranteed: always handle a plain expiry.
+   * A function that takes no argument keeps working: it simply ignores the
+   * request.
    */
-  getToken?: () => string | Promise<string>;
+  getToken?: (ctx?: TokenRequest) => string | Promise<string>;
   /**
    * Which flow the widget opens on. "connect" (the default) connects a domain.
    *
@@ -461,7 +491,16 @@ export interface CheckDomainResult {
 /** One rail's availability on checkDomain. */
 export interface RailInfo {
   available: boolean;
-  /** Machine reason, present exactly when `available` is false. */
+  /**
+   * Machine reason, present exactly when `available` is false. Two of them, on
+   * `rails.cloudBrowser` (the secure sign-in), name the caller, not the provider:
+   * `caller_cannot_start` (this caller could never start it: an agent, a plain
+   * API call without the console, or a role that cannot write connections) and
+   * `token_not_bound` (the widget token is bound to no domain, or only to other
+   * domains: mint one with `domain` and `end_user_ref`, which is the case a
+   * `getToken` request with `reason: "bind"` is about). The type stays
+   * `string`: new reasons are added without a new SDK release.
+   */
   reason?: string;
   /** A note on an available rail most users still can't use (GoDaddy API gating). */
   caveat?: string;
@@ -555,6 +594,26 @@ export interface CheckRecordsResult {
   domain: string;
   inSync: boolean;
   records: Array<{ host: string; type: string; ok: boolean; observed: string[] }>;
+}
+
+/** The longest hostname DNS allows, in characters. A longer `domain` in a token request is not one. */
+const MAX_TOKEN_REQUEST_DOMAIN = 253;
+
+/**
+ * The TokenRequest for a `customdomain:token-expired` payload. The payload comes from the widget's
+ * frame, so it is untrusted: anything that is not an object, or a field of the wrong type,
+ * reads as "expired" with no domain. `domain` is left off the object (not set to undefined) when
+ * it is dropped, so a host that spreads or compares the request sees only what the widget sent.
+ * Reading a hostile payload (a getter that throws) can throw, so call it inside the promise chain
+ * that answers the widget, never before it.
+ */
+function tokenRequestFrom(payload: unknown): TokenRequest {
+  const p = payload && typeof payload === "object" ? (payload as { domain?: unknown; reason?: unknown }) : {};
+  const request: TokenRequest = { reason: p.reason === "bind" ? "bind" : "expired" };
+  if (typeof p.domain === "string" && p.domain.length > 0 && p.domain.length <= MAX_TOKEN_REQUEST_DOMAIN) {
+    request.domain = p.domain;
+  }
+  return request;
 }
 
 /**
@@ -877,9 +936,12 @@ export class CustomDomain {
           dispatch(EVT.removed, payload);
           break;
         case "customdomain:token-expired": {
-          // The widget's token expired mid-setup. Ask the integrator for a
-          // fresh one; answer with null when there is none so the widget moves
-          // straight to "you can close this window" instead of waiting.
+          // The widget needs another token: its own expired mid-setup, or (when
+          // it says so in the payload) it is not bound to the domain the end
+          // user typed. Ask the integrator for one, telling it which; a widget
+          // that sends no payload reads as a plain expiry. Answer with null when
+          // there is no getToken so the widget moves straight to "you can close
+          // this window" instead of waiting.
           const reply = (token: string | null) => {
             try {
               frame.contentWindow?.postMessage({ type: "customdomain:token", payload: { token } }, widgetBase);
@@ -891,8 +953,12 @@ export class CustomDomain {
             reply(null);
             break;
           }
+          // The request is built inside the chain, not before it: the payload comes
+          // from a frame, and a payload that throws when read must still end in a
+          // reply (null) instead of escaping this handler and leaving the widget
+          // waiting for a token that never comes.
           Promise.resolve()
-            .then(() => config.getToken!())
+            .then(() => config.getToken!(tokenRequestFrom(payload)))
             .then((tok) => reply(typeof tok === "string" && tok ? tok : null))
             .catch(() => reply(null));
           break;

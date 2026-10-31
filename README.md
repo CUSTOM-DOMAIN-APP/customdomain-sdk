@@ -2,7 +2,7 @@
 
 The browser SDK that lets your SaaS users connect their own domain.
 
-**Status:** Maintained · v0.5.7 · TypeScript · published to npm with provenance
+**Status:** Maintained · v0.5.8 · TypeScript · published to npm with provenance
 
 [![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
@@ -18,7 +18,7 @@ The browser SDK that lets your SaaS users connect their own domain.
 | **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
 | **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
 | **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
-| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.7** on npm · every pull request builds the real bundle and drives it through headless Chromium |
+| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.8** on npm · every pull request builds the real bundle and drives it through headless Chromium |
 
 This repository is the client half of [CustomDomain™](https://customdomain.ai): two npm packages
 your application installs, plus the widget they open. Your app calls one function; the user pastes
@@ -72,6 +72,14 @@ window.addEventListener("customdomain:success", (e) => {
 });
 ```
 
+`getToken` can also be how the widget asks for a token for the domain the user typed. When the widget
+sends the domain and a reason, `getToken` is called with `{ domain, reason }`: `reason` is `"expired"`
+for a token that ran out and `"bind"` when the token in use is not bound to `domain`. Mint the new
+token for that domain and for your own user (`domain` and `end_user_ref` on `POST /v1/tokens`), and
+the secure sign-in is accepted for it. The hosted widget does not send them yet: until it does,
+`getToken` is called with `{ reason: "expired" }`. A `getToken` with no parameter keeps working. See
+[Tokens for the domain the user typed](packages/sdk/README.md#tokens-for-the-domain-the-user-typed).
+
 Check the live provider census the numbers above come from:
 
 ```sh
@@ -92,15 +100,18 @@ caller is signed in before you answer:
 
 ```ts
 // app/api/customdomain-token/route.ts
-export async function POST() {
+export async function POST(req: Request) {
   // Check your own session here: only signed-in users should get a token.
+  // When the widget names the domain the user typed, bind the token to it.
+  const body = await req.json().catch(() => ({}));
+  const domain = typeof body?.domain === "string" ? body.domain : undefined;
   const res = await fetch("https://app.customdomain.ai/api/widget-token", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.CUSTOMDOMAIN_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({}), // optional: { application_id, domain }
+    body: JSON.stringify({ domain }), // optional: { application_id, domain }
   });
   if (!res.ok) return Response.json({ error: "token_failed" }, { status: 502 });
   const { application_id, token } = await res.json();
@@ -117,8 +128,12 @@ around it can render on the server:
 
 import { useCustomdomain } from "@customdomain/react";
 
-async function fetchToken(): Promise<{ application_id: string; token: string }> {
-  const res = await fetch("/api/customdomain-token", { method: "POST" });
+async function fetchToken(domain?: string): Promise<{ application_id: string; token: string }> {
+  const res = await fetch("/api/customdomain-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain }),
+  });
   if (!res.ok) throw new Error("Could not get a widget token");
   return res.json();
 }
@@ -127,7 +142,8 @@ export function ConnectDomainButton({ applicationId, userId }: { applicationId: 
   const { open, ready } = useCustomdomain({
     applicationId,
     token: "", // open() below passes a fresh one
-    getToken: async () => (await fetchToken()).token, // keeps long manual setups alive
+    // Keeps long manual setups alive, and binds the token to the domain when the widget names one:
+    getToken: async (ctx) => (await fetchToken(ctx?.domain)).token,
     endUserRef: userId,
     onSuccess: ({ domain }) => console.log(`${domain} connected`),
   });
@@ -180,8 +196,12 @@ import { customdomain } from "customdomain-js";
 const props = defineProps<{ userId: string }>();
 const emit = defineEmits<{ connected: [domain: string] }>();
 
-async function fetchToken(): Promise<{ application_id: string; token: string }> {
-  const res = await fetch("/api/customdomain-token", { method: "POST" });
+async function fetchToken(domain?: string): Promise<{ application_id: string; token: string }> {
+  const res = await fetch("/api/customdomain-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain }),
+  });
   if (!res.ok) throw new Error("Could not get a widget token");
   return res.json();
 }
@@ -191,7 +211,7 @@ async function connect() {
   customdomain.open({
     applicationId: application_id,
     token,
-    getToken: async () => (await fetchToken()).token,
+    getToken: async (ctx) => (await fetchToken(ctx?.domain)).token,
     endUserRef: props.userId,
     onSuccess: ({ domain }) => emit("connected", domain),
   });

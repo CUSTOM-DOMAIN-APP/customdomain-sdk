@@ -43,7 +43,8 @@ import { customdomain } from "customdomain-js";
 customdomain.open({
   applicationId: "app_123",
   token: tokenFromYourServer,
-  // Optional: return a fresh token when the first one expires in the middle of a setup.
+  // Optional: return a fresh token when the first one expires in the middle of a setup, or a token
+  // for the domain the user typed (see "Tokens for the domain the user typed" below).
   getToken: () =>
     fetch("/api/customdomain/token", { method: "POST" })
       .then((r) => r.json())
@@ -83,7 +84,7 @@ The ones most integrations use. The full list is in the
 |---|---|---|
 | `applicationId` (required) | `string` | Your public application id. |
 | `token` (required) | `string` | A widget token minted on your server with `POST /v1/tokens`. |
-| `getToken` | `() => string \| Promise<string>` | Returns a fresh widget token. Widget tokens last about 15 minutes, and a user adding DNS records by hand often takes longer. With `getToken` the widget refreshes silently instead of stopping; without it, the widget tells the user they can close the window, and the connection still finishes on its own once the records appear. |
+| `getToken` | `(ctx?: TokenRequest) => string \| Promise<string>` | Returns a fresh widget token. Widget tokens last about 15 minutes, and a user adding DNS records by hand often takes longer. With `getToken` the widget refreshes silently instead of stopping; without it, the widget tells the user they can close the window, and the connection still finishes on its own once the records appear. When the widget names the domain the user typed, `ctx` carries it, so you can mint a token bound to that domain; see [Tokens for the domain the user typed](#tokens-for-the-domain-the-user-typed). A function with no parameter works as before. |
 | `wwwRedirect` | `boolean` | Root domains only. `true` connects the root and `www` and redirects the root to `www`; `false` connects the root alone; leave it unset to let the user choose. |
 | `domain` / `prefilledDomain` | `string` / `string \| string[]` | Pre-fill the domain. An array runs a multi-domain flow. |
 | `dnsRecords` | `DNSRecord[] \| Record<string, DNSRecord[]>` | Only DKIM records are used (`purpose: "dkim"`, or a host under `_domainkey`); any other record is ignored, and `open()` says so once in the console. The records a customer is shown come from the server: set where domains point with `PUT /v1/applications/{id}/connect-target`, or one connection's records with `PUT /v1/connections/{id}/records`. |
@@ -94,6 +95,52 @@ The ones most integrations use. The full list is in the
 | `mode` | `"connect" \| "remove" \| "reconnect"` | The flow the widget opens on. `connect` is the default; `remove` is what `removeDomain()` sets; `reconnect` renews the domain's lasting API key with one sign-in, see [Reconnecting a domain](#reconnecting-a-domain). |
 | `connectionId` | `string` | For `remove` and `reconnect`: the connection, when you kept its id. Otherwise the prefilled domain is looked up. |
 | `onSuccess`, `onClose`, `onStepChange`, `onError`, `onFallback`, `onRemoved` | functions | Callbacks, delivered in addition to the window events below. |
+
+## Tokens for the domain the user typed
+
+A widget token can be bound to one domain and one end user: `POST /v1/tokens` takes `domain` and
+`end_user_ref`. The secure sign-in is refused for a token that is bound to no domain, or only to
+other domains: `checkDomain` answers `rails.cloudBrowser.reason: "token_not_bound"`, and starting
+the sign-in with that token is refused with a `403` of the same name. The user types the domain
+after your page has minted its token, so a widget that knows the domain can ask `getToken` for a
+token for it. `getToken` is called with a `TokenRequest`, built from what the widget sends:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `domain` | `string`, optional | The domain the user typed, which the token should be bound to. Absent when the widget names none (the hosted widget names none yet, see the end of this section); a value that is not a non-empty string of at most 253 characters is dropped. |
+| `reason` | `"bind" \| "expired"` | `bind`: the token in use is not bound to `domain`. `expired`: the token ran out; when `domain` is set, mint the new one for it too so it stays bound. Anything else the widget sends reads as `expired`. |
+
+```ts
+import { customdomain } from "customdomain-js";
+
+customdomain.open({
+  applicationId: "app_123",
+  token: tokenFromYourServer,
+  endUserRef: user.id,
+  // ctx is a TokenRequest (exported by this package), typed optional so that a function with no
+  // parameter is accepted too.
+  getToken: (ctx) =>
+    fetch("/api/customdomain/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain: ctx?.domain }), // left out of the JSON when undefined
+    })
+      .then((r) => r.json())
+      .then((body) => body.token),
+});
+```
+
+Your route mints with `POST /v1/tokens`. Take `domain` from the request, and `end_user_ref` from
+your own signed-in session, never from the request body: the browser chooses the domain, and only
+your server knows who the user is. The `domain` is only ever a name to bind the token to, so check
+it is a hostname before you pass it on.
+
+A `getToken` that takes no argument keeps working: it ignores the request and answers a fresh
+token, which is all an expiry needs. A widget that sends no payload, or one the SDK cannot read,
+gets `getToken` called with `{ reason: "expired" }`. Until the hosted widget is updated to send the
+domain and the reason, that is what it always does, so `getToken` is called with
+`{ reason: "expired" }` and never `"bind"`, and a release reaches the hosted bundle only after it
+is vendored (see [The two repositories](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/CHANGELOG.md#the-two-repositories)).
 
 ## Events
 
@@ -227,7 +274,7 @@ Every field of `CheckDomainResult`. Optional fields are absent when the server d
 | `willFallbackToManual` | `boolean` | The server's prediction that the one-click rail would quietly become a manual record list for this domain. |
 | `apexSupported` | `boolean` | Provider fact: it can host a CNAME-like record at the zone root. |
 | `apexMessage` | `string` | This-domain verdict, non-empty exactly when the apply would refuse the record set. Gate warnings on this, not on `apexSupported`. |
-| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser?, nameservers?, savedAccess? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. An available `oauth` rail also carries `flow` (the sign-in it runs) and `managed` (the connect keeps its credential). `cloudBrowser` is present only when that rail is switched on for your application; when its sign-in also makes a lasting API key, `key` says what the key can do beyond DNS (`rights`) and when it ends (`endsInDays`, `null` for never). `nameservers` is the DNS hosting verdict (`verdict`: `offered`, `offered_first`, `recommended` or `unavailable`, and `reason`), present when the application offers DNS hosting. `savedAccess` lists the kept provider keys that may act for the domain (`available`, `accounts` of `SavedAccess`, best first); a widget token gets `available: false` and no accounts, so a page never shows them. |
+| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser?, nameservers?, savedAccess? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. An available `oauth` rail also carries `flow` (the sign-in it runs) and `managed` (the connect keeps its credential). `cloudBrowser` is present only when that rail is switched on for your application, and its `reason` can name the caller instead of the provider: `caller_cannot_start` (an agent, a plain API call without the console, or a role that cannot write connections) or `token_not_bound` (the widget token is not bound to this domain, see [Tokens for the domain the user typed](#tokens-for-the-domain-the-user-typed)); when its sign-in also makes a lasting API key, `key` says what the key can do beyond DNS (`rights`) and when it ends (`endsInDays`, `null` for never). `nameservers` is the DNS hosting verdict (`verdict`: `offered`, `offered_first`, `recommended` or `unavailable`, and `reason`), present when the application offers DNS hosting. `savedAccess` lists the kept provider keys that may act for the domain (`available`, `accounts` of `SavedAccess`, best first); a widget token gets `available: false` and no accounts, so a page never shows them. |
 | `recommendedRail` | `"saved_access" \| "oauth" \| "domain_connect" \| "cloud_browser" \| "api_key" \| "manual"` | The rail the widget will pick. `saved_access` only reaches an API key caller. |
 | `alsoProvider` | `{ provider, providerName, reason: "former_google_domains" }` | Set when the registrar and the nameservers name two providers: a former Google Domains name is Squarespace's now and keeps Google's nameservers, which Google Cloud DNS zones use too. `provider` is then the registrar's. |
 | `endUserAutomatic` | `boolean` | True when the recommended rail needs nothing typed by the end user. |
