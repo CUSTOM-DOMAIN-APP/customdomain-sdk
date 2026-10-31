@@ -40,6 +40,8 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
+## [0.5.8] (2026-10-31)
+
 `getToken` is now told what the widget is asking for: the domain the end user typed, and whether
 the token ran out or is not bound to that domain. Mint the token for that domain and your user
 and the secure sign-in is accepted for it. Nothing was removed, and a `getToken` that takes no
@@ -59,6 +61,7 @@ argument works as before; one change to watch for is under **Changed**.
 - **`customdomain-js`**: the exported type `TokenRequest`.
 - **`@customdomain/react`**: re-exports `TokenRequest`. The `getToken` option of `useCustomdomain()`
   and `<CustomdomainConnect>` is the SDK's own, so it takes the same request, and its README says so.
+  It depends on `customdomain-js@0.5.8`.
 - **`customdomain-js`**: the doc of `RailInfo.reason` names two reasons that
   `rails.cloudBrowser` (the secure sign-in) gives for the caller rather than the provider:
   `caller_cannot_start` (an agent, a plain API call without the console, or a role that cannot
