@@ -524,3 +524,386 @@ test("a token-expired message from another origin is ignored", async () => {
   assert.deepEqual(tokenAnswers(), []);
   sdk.close();
 });
+
+// The nameserver methods: getNameserverMove, startNameserverMove and rollbackNameservers call the routes the
+// hosted widget itself calls, with the end user's widget token. A stub fetch records each request and answers
+// with a wire shape (snake_case), which the SDK maps to the camelCase view.
+
+/** Answer every fetch with `status` and `body`, and record the requests (`url`, `init`) it was given. */
+function stubFetch(status, body) {
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, init });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      statusText: `status ${status}`,
+      json: async () => {
+        if (body === undefined) throw new SyntaxError("Unexpected end of JSON input");
+        return body;
+      },
+    };
+  };
+  return requests;
+}
+
+const NS_API = "https://api.test";
+const NS_CFG = { token: "tok_ns" };
+const nsSdk = () => new CustomDomain({ apiBase: NS_API });
+const sentBody = (request) => JSON.parse(request.init.body);
+
+/** A move as the API sends it, with every field set. */
+const MOVE_WIRE = {
+  id: "nsm_1",
+  connection_id: "conn_1",
+  zone: "acme.com",
+  state: "needs_review",
+  path: "agent",
+  target: "dns_host",
+  dns_host: "cloudflare",
+  provider: "godaddy",
+  registrar: { name: "GoDaddy", provider: "godaddy", iana_id: 146, url: "https://www.godaddy.com", source: "rdap" },
+  old_dns_host: "route53",
+  old_nameservers: ["ns-1.old.example", "ns-2.old.example"],
+  new_nameservers: ["ada.ns.example", "bob.ns.example"],
+  observed_nameservers: ["ns-1.old.example", "ns-2.old.example"],
+  waiting_for: "copy_review",
+  next_step: "Check the copied records, then confirm.",
+  next_action: { kind: "rollback", method: "POST", path: "/v1/connections/conn_1/nameservers:rollback", body: { rollback_target: "previous" } },
+  failure_code: "registrar_refused",
+  failure_detail: "the registrar said no",
+  records_copied: 12,
+  email_records: 3,
+  email_kinds: ["mx", "spf", "dkim"],
+  copy_source: "discovery",
+  copy_warnings: ["a proxied record was left out"],
+  copy_reviewed_at: "2026-10-30T10:05:00Z",
+  ds_present: true,
+  ds_removed_at: "2026-10-30T10:06:00Z",
+  ds_cleared_at: "2026-10-30T10:07:00Z",
+  can_rollback: true,
+  rollback_path: "agent",
+  rollback_targets: ["previous", "registrar_default"],
+  rollback_default: "previous",
+  rollback_target: "registrar_default",
+  rollback_set_at: "2026-10-30T10:08:00Z",
+  old_dns_serves: true,
+  consent: { id: "nsm-consent", version: "3", at: "2026-10-30T10:00:00Z" },
+  actor: "end_user",
+  created_at: "2026-10-30T10:00:00Z",
+  set_at: "2026-10-30T10:01:00Z",
+  active_at: "2026-10-30T10:02:00Z",
+  failed_at: "2026-10-30T10:03:00Z",
+  rolled_back_at: "2026-10-30T10:04:00Z",
+  drifted_at: "2026-10-30T10:09:00Z",
+  checked_at: "2026-10-30T10:10:00Z",
+  next_check_at: "2026-10-30T10:15:00Z",
+  updated_at: "2026-10-30T10:11:00Z",
+};
+
+/** The same move as the SDK returns it. */
+const MOVE_VIEW = {
+  id: "nsm_1",
+  connectionId: "conn_1",
+  zone: "acme.com",
+  state: "needs_review",
+  path: "agent",
+  target: "dns_host",
+  dnsHost: "cloudflare",
+  provider: "godaddy",
+  registrar: { name: "GoDaddy", provider: "godaddy", ianaId: 146, url: "https://www.godaddy.com", source: "rdap" },
+  oldDnsHost: "route53",
+  oldNameservers: ["ns-1.old.example", "ns-2.old.example"],
+  newNameservers: ["ada.ns.example", "bob.ns.example"],
+  observedNameservers: ["ns-1.old.example", "ns-2.old.example"],
+  waitingFor: "copy_review",
+  nextStep: "Check the copied records, then confirm.",
+  nextAction: { kind: "rollback", method: "POST", path: "/v1/connections/conn_1/nameservers:rollback", body: { rollback_target: "previous" } },
+  failureCode: "registrar_refused",
+  failureDetail: "the registrar said no",
+  recordsCopied: 12,
+  emailRecords: 3,
+  emailKinds: ["mx", "spf", "dkim"],
+  copySource: "discovery",
+  copyWarnings: ["a proxied record was left out"],
+  copyReviewedAt: "2026-10-30T10:05:00Z",
+  dsPresent: true,
+  dsRemovedAt: "2026-10-30T10:06:00Z",
+  dsClearedAt: "2026-10-30T10:07:00Z",
+  canRollback: true,
+  rollbackPath: "agent",
+  rollbackTargets: ["previous", "registrar_default"],
+  rollbackDefault: "previous",
+  rollbackTarget: "registrar_default",
+  rollbackSetAt: "2026-10-30T10:08:00Z",
+  oldDnsServes: true,
+  consent: { id: "nsm-consent", version: "3", at: "2026-10-30T10:00:00Z" },
+  actor: "end_user",
+  createdAt: "2026-10-30T10:00:00Z",
+  setAt: "2026-10-30T10:01:00Z",
+  activeAt: "2026-10-30T10:02:00Z",
+  failedAt: "2026-10-30T10:03:00Z",
+  rolledBackAt: "2026-10-30T10:04:00Z",
+  driftedAt: "2026-10-30T10:09:00Z",
+  checkedAt: "2026-10-30T10:10:00Z",
+  nextCheckAt: "2026-10-30T10:15:00Z",
+  updatedAt: "2026-10-30T10:11:00Z",
+};
+
+/** What a move with nothing but its identity reads as: lists empty, counts zero, flags false, the nullable three null. */
+const MOVE_BARE_VIEW = {
+  id: "nsm_2",
+  zone: "acme.com",
+  state: "copying",
+  path: "manual",
+  target: "managed",
+  registrar: null,
+  oldNameservers: [],
+  newNameservers: [],
+  observedNameservers: [],
+  nextAction: null,
+  recordsCopied: 0,
+  emailRecords: 0,
+  emailKinds: [],
+  copyWarnings: [],
+  dsPresent: false,
+  canRollback: false,
+  rollbackTargets: [],
+  oldDnsServes: null,
+};
+const MOVE_BARE_WIRE = { id: "nsm_2", zone: "acme.com", state: "copying", path: "manual", target: "managed" };
+
+const CONSENT = { id: "nsm-consent", version: "3" };
+
+test("getNameserverMove reads GET /v1/connections/{id}/nameservers with the token and maps every field", async () => {
+  const requests = stubFetch(200, MOVE_WIRE);
+  const move = await nsSdk().getNameserverMove("conn_1", NS_CFG);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, `${NS_API}/v1/connections/conn_1/nameservers`);
+  assert.equal(requests[0].init.method, "GET");
+  assert.equal(requests[0].init.headers.authorization, "Bearer tok_ns");
+  assert.equal(requests[0].init.body, undefined, "a read sends no body");
+  assert.deepEqual(move, MOVE_VIEW);
+});
+
+test("getNameserverMove leaves the wire names behind: no snake_case key survives the mapping", async () => {
+  stubFetch(200, MOVE_WIRE);
+  const move = await nsSdk().getNameserverMove("conn_1", NS_CFG);
+  const snake = Object.keys(move).filter((k) => k.includes("_"));
+  assert.deepEqual(snake, []);
+  assert.deepEqual(Object.keys(move.registrar).filter((k) => k.includes("_")), []);
+});
+
+test("getNameserverMove tolerates a move with only its identity: lists empty, counts zero, flags false, optional fields absent", async () => {
+  stubFetch(200, MOVE_BARE_WIRE);
+  const move = await nsSdk().getNameserverMove("conn_1", NS_CFG);
+  assert.deepEqual(move, MOVE_BARE_VIEW);
+  for (const absent of ["connectionId", "dnsHost", "provider", "oldDnsHost", "waitingFor", "nextStep", "failureCode", "failureDetail", "copySource", "copyReviewedAt", "dsRemovedAt", "dsClearedAt", "rollbackPath", "rollbackDefault", "rollbackTarget", "rollbackSetAt", "consent", "actor", "createdAt", "setAt", "activeAt", "failedAt", "rolledBackAt", "driftedAt", "checkedAt", "nextCheckAt", "updatedAt"]) {
+    assert.equal(absent in move, false, `${absent} is set though the answer had none`);
+  }
+});
+
+test("getNameserverMove reads a null field as absent, and a registrar with only a name and source", async () => {
+  const nulls = Object.fromEntries(Object.keys(MOVE_WIRE).map((k) => [k, null]));
+  stubFetch(200, { ...nulls, id: "nsm_3", zone: "acme.com", state: "propagating", path: "api", target: "custom", registrar: { name: "Some Registrar", source: "" } });
+  const move = await nsSdk().getNameserverMove("conn_1", NS_CFG);
+  assert.deepEqual(move, {
+    ...MOVE_BARE_VIEW,
+    id: "nsm_3",
+    state: "propagating",
+    path: "api",
+    target: "custom",
+    registrar: { name: "Some Registrar", source: "" },
+  });
+
+  // An answer with no registrar `source` at all still reads as a string.
+  stubFetch(200, { ...MOVE_BARE_WIRE, registrar: { name: "Some Registrar" } });
+  assert.deepEqual((await nsSdk().getNameserverMove("conn_1", NS_CFG)).registrar, { name: "Some Registrar", source: "" });
+});
+
+test("getNameserverMove maps a next_action that has no body, and one that has", async () => {
+  stubFetch(200, { ...MOVE_BARE_WIRE, next_action: { kind: "retry", method: "POST", path: "/v1/connections/conn_1/nameservers:migrate" } });
+  const retry = (await nsSdk().getNameserverMove("conn_1", NS_CFG)).nextAction;
+  assert.deepEqual(retry, { kind: "retry", method: "POST", path: "/v1/connections/conn_1/nameservers:migrate" });
+  assert.equal("body" in retry, false);
+
+  stubFetch(200, { ...MOVE_BARE_WIRE, next_action: { kind: "sign_in", method: "POST", path: "/v1/connections/conn_1/browser:start", body: { purpose: "nameservers", provider: "godaddy" } } });
+  assert.deepEqual((await nsSdk().getNameserverMove("conn_1", NS_CFG)).nextAction.body, { purpose: "nameservers", provider: "godaddy" });
+});
+
+test("getNameserverMove resolves null when no move was started (404), and rejects for any other refusal", async () => {
+  stubFetch(404, { code: "not_found", title: "No nameserver migration was started for this connection." });
+  assert.equal(await nsSdk().getNameserverMove("conn_1", NS_CFG), null);
+
+  for (const [status, code] of [[401, "unauthorized"], [403, "token_wrong_end_user"], [500, "internal"], [503, "unavailable"]]) {
+    stubFetch(status, { code, title: `title ${status}`, details: `details ${status}` });
+    await assert.rejects(
+      () => nsSdk().getNameserverMove("conn_1", NS_CFG),
+      (err) => err.name === "CustomDomainError" && err.code === code && err.status === status && err.message === `title ${status}` && err.details === `details ${status}`,
+      String(status)
+    );
+  }
+});
+
+test("a nameserver call uses cfg.apiBase over the instance's, and the instance's over the hosted default", async () => {
+  const requests = stubFetch(200, MOVE_BARE_WIRE);
+  await nsSdk().getNameserverMove("conn_1", { token: "t", apiBase: "https://other.test" });
+  await nsSdk().getNameserverMove("conn_1", { token: "t" });
+  await new CustomDomain().getNameserverMove("conn_1", { token: "t" });
+  assert.deepEqual(
+    requests.map((r) => r.url),
+    [
+      "https://other.test/v1/connections/conn_1/nameservers",
+      `${NS_API}/v1/connections/conn_1/nameservers`,
+      "https://api.customdomain.ai/v1/connections/conn_1/nameservers",
+    ]
+  );
+});
+
+test("a connection id with a slash, a space or a colon stays one path segment, on all three routes", async () => {
+  const requests = stubFetch(200, MOVE_BARE_WIRE);
+  const id = "conn/1 x:y";
+  await nsSdk().getNameserverMove(id, NS_CFG);
+  await nsSdk().startNameserverMove(id, CONSENT, NS_CFG);
+  await nsSdk().rollbackNameservers(id, NS_CFG);
+  assert.deepEqual(
+    requests.map((r) => r.url),
+    [
+      `${NS_API}/v1/connections/conn%2F1%20x%3Ay/nameservers`,
+      `${NS_API}/v1/connections/conn%2F1%20x%3Ay/nameservers:migrate`,
+      `${NS_API}/v1/connections/conn%2F1%20x%3Ay/nameservers:rollback`,
+    ]
+  );
+});
+
+test("startNameserverMove posts the consent to nameservers:migrate and maps the move (201 and 200 alike)", async () => {
+  for (const status of [201, 200]) {
+    const requests = stubFetch(status, MOVE_WIRE);
+    const move = await nsSdk().startNameserverMove("conn_1", CONSENT, NS_CFG);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, `${NS_API}/v1/connections/conn_1/nameservers:migrate`);
+    assert.equal(requests[0].init.method, "POST");
+    assert.equal(requests[0].init.headers.authorization, "Bearer tok_ns");
+    assert.equal(requests[0].init.headers["content-type"], "application/json");
+    assert.deepEqual(sentBody(requests[0]), { consent: { id: "nsm-consent", version: "3" } });
+    assert.deepEqual(move, MOVE_VIEW);
+  }
+});
+
+test("startNameserverMove sends copy_reviewed only when copyReviewed is true, and only the consent's id and version", async () => {
+  const requests = stubFetch(200, MOVE_BARE_WIRE);
+  await nsSdk().startNameserverMove("conn_1", CONSENT, { token: "t", copyReviewed: true });
+  await nsSdk().startNameserverMove("conn_1", CONSENT, { token: "t", copyReviewed: false });
+  await nsSdk().startNameserverMove("conn_1", CONSENT, { token: "t" });
+  assert.deepEqual(sentBody(requests[0]), { consent: CONSENT, copy_reviewed: true });
+  assert.deepEqual(sentBody(requests[1]), { consent: CONSENT });
+  assert.deepEqual(sentBody(requests[2]), { consent: CONSENT });
+
+  // Anything else on the consent object stays on the caller's side.
+  await nsSdk().startNameserverMove("conn_1", { id: "nsm-consent", version: "3", at: "yesterday", note: "x" }, NS_CFG);
+  assert.deepEqual(sentBody(requests[3]), { consent: CONSENT });
+});
+
+test("startNameserverMove needs the consent: a missing or blank one rejects with InvalidConsentError and sends nothing", async () => {
+  const requests = stubFetch(200, MOVE_WIRE);
+  for (const bad of [
+    undefined,
+    null,
+    {},
+    { id: "nsm-consent" },
+    { version: "3" },
+    { id: "", version: "3" },
+    { id: "nsm-consent", version: "" },
+    { id: "   ", version: "3" },
+    { id: "nsm-consent", version: "\t" },
+    { id: 7, version: "3" },
+    { id: "nsm-consent", version: 3 },
+    { id: null, version: null },
+    "nsm-consent",
+    42,
+    [],
+  ]) {
+    await assert.rejects(
+      () => nsSdk().startNameserverMove("conn_1", bad, NS_CFG),
+      (err) => err.name === "CustomDomainError" && err.code === "InvalidConsentError" && err.status === undefined,
+      JSON.stringify(bad) ?? String(bad)
+    );
+  }
+  assert.equal(requests.length, 0, "a call without consent reached the API");
+});
+
+test("startNameserverMove surfaces the API's refusals as CustomDomainError with code, status and details", async () => {
+  for (const [status, code] of [
+    [400, "invalid_request"],
+    [403, "token_wrong_end_user"],
+    [403, "forbidden"],
+    [409, "conflict"],
+    [422, "nameserver_migration_unavailable"],
+    [422, "registrar_locks_nameservers"],
+    [404, "not_found"],
+    [503, "unavailable"],
+  ]) {
+    stubFetch(status, { code, title: `title ${code}`, details: `details ${code}` });
+    await assert.rejects(
+      () => nsSdk().startNameserverMove("conn_1", CONSENT, NS_CFG),
+      (err) => err.name === "CustomDomainError" && err.code === code && err.status === status && err.message === `title ${code}` && err.details === `details ${code}`,
+      `${status} ${code}`
+    );
+  }
+});
+
+test("rollbackNameservers with no target posts an empty body to nameservers:rollback and maps the move", async () => {
+  const requests = stubFetch(200, MOVE_WIRE);
+  const move = await nsSdk().rollbackNameservers("conn_1", NS_CFG);
+  assert.equal(requests[0].url, `${NS_API}/v1/connections/conn_1/nameservers:rollback`);
+  assert.equal(requests[0].init.method, "POST");
+  assert.equal(requests[0].init.headers.authorization, "Bearer tok_ns");
+  assert.equal(requests[0].init.headers["content-type"], "application/json");
+  assert.equal(requests[0].init.body, "{}");
+  assert.deepEqual(move, MOVE_VIEW);
+});
+
+test("rollbackNameservers sends rollback_target for a target, and an empty body for none, undefined or blank", async () => {
+  const requests = stubFetch(200, MOVE_BARE_WIRE);
+  await nsSdk().rollbackNameservers("conn_1", "previous", NS_CFG);
+  await nsSdk().rollbackNameservers("conn_1", "registrar_default", NS_CFG);
+  await nsSdk().rollbackNameservers("conn_1", undefined, NS_CFG);
+  await nsSdk().rollbackNameservers("conn_1", "", NS_CFG);
+  await nsSdk().rollbackNameservers("conn_1", null, NS_CFG);
+  assert.deepEqual(requests.map(sentBody), [
+    { rollback_target: "previous" },
+    { rollback_target: "registrar_default" },
+    {},
+    {},
+    {},
+  ]);
+  // The token and base URL come from the config in every form.
+  assert.deepEqual([...new Set(requests.map((r) => r.init.headers.authorization))], ["Bearer tok_ns"]);
+  assert.deepEqual([...new Set(requests.map((r) => r.url))], [`${NS_API}/v1/connections/conn_1/nameservers:rollback`]);
+});
+
+test("rollbackNameservers surfaces the API's refusals as CustomDomainError, whichever form it was called in", async () => {
+  for (const [status, code] of [
+    [403, "token_wrong_end_user"],
+    [409, "old_dns_gone"],
+    [409, "changed_elsewhere"],
+    [502, "registrar_refused"],
+    [504, "registrar_unconfirmed"],
+  ]) {
+    stubFetch(status, { code, title: `title ${code}`, details: `details ${code}` });
+    const refused = (err) => err.name === "CustomDomainError" && err.code === code && err.status === status && err.details === `details ${code}`;
+    await assert.rejects(() => nsSdk().rollbackNameservers("conn_1", NS_CFG), refused, `${code} (no target)`);
+    await assert.rejects(() => nsSdk().rollbackNameservers("conn_1", "previous", NS_CFG), refused, `${code} (target)`);
+  }
+});
+
+test("an error answer that is not JSON still becomes a CustomDomainError with the status in its code", async () => {
+  stubFetch(502, undefined);
+  for (const call of [
+    () => nsSdk().getNameserverMove("conn_1", NS_CFG),
+    () => nsSdk().startNameserverMove("conn_1", CONSENT, NS_CFG),
+    () => nsSdk().rollbackNameservers("conn_1", NS_CFG),
+  ]) {
+    await assert.rejects(call, (err) => err.name === "CustomDomainError" && err.code === "http_502" && err.status === 502 && err.message === "status 502");
+  }
+});

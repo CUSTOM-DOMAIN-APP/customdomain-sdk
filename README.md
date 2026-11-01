@@ -252,6 +252,7 @@ No build step: the hosted bundle attaches `window.customdomain`.
 - **Verifies ownership without a separate challenge step.** Control is proven by the rail that writes the DNS, or by the records appearing in authoritative DNS.
 - **Handles root domains.** `wwwRedirect` connects the root and `www` and redirects the root, connects the root alone, or lets the user choose.
 - **Streams progress to your app.** `customdomain:success`, `:step`, `:close`, `:error`, `:fallback`, `:purchase`, `:removed` and `:shared` events, plus `checkDomain()` and `checkRecords()` if you want to drive your own UI.
+- **Drives DNS hosting from your own page.** `getNameserverMove()`, `startNameserverMove()` (the end user's consent is required) and `rollbackNameservers()` run a domain's nameserver move with the end user's widget token, the way the hosted widget does; see [Nameserver moves](packages/sdk/README.md#nameserver-moves).
 - **White-labels.** Colors, fonts, copy, locale and logo, so the flow reads as part of your product.
 
 ## How it's organized

@@ -39,6 +39,36 @@ missing, the workflow falls back to notes generated from commits and pull reques
 ---
 
 ## [Unreleased]
+### Added
+
+- **`customdomain-js`**: the nameserver methods. `getNameserverMove(connectionId, { token, apiBase? })`,
+  `startNameserverMove(connectionId, consent, { token, apiBase?, copyReviewed? })` and
+  `rollbackNameservers(connectionId, target?, { token, apiBase? })` drive a domain's nameserver move
+  with the end user's widget token, over the routes the hosted widget itself calls
+  (`GET /v1/connections/{id}/nameservers`, `POST .../nameservers:migrate` and `:rollback`). They
+  resolve a `NameserverMove`, the API's answer mapped to camelCase: a field the API did not send is
+  absent, and the lists, counts and flags read as empty, zero and false.
+  `getNameserverMove` resolves `null` when no move was started (a 404). The consent of
+  `startNameserverMove`, `{ id, version }`, is required by the type and checked when called: a missing
+  one, or one whose id or version is not a non-empty string, rejects with a `CustomDomainError` of code
+  `InvalidConsentError` before anything is sent. `copyReviewed: true` confirms the copy of a move in
+  `needs_review`, as the widget does. `rollbackNameservers` takes the target before the config, or no
+  target: `rollbackNameservers(id, { token })` and `rollbackNameservers(id, "previous", { token })`.
+  A refusal rejects with a `CustomDomainError` carrying the API's `code`, `status` and `details`.
+- **`customdomain-js`**: the exported types `NameserverMove`, `NameserverMoveState`,
+  `NameserverRegistrar`, `NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent` and
+  `ConnectionCallConfig`, and `NameserverMoveErrorCode`, the codes the three methods' rejections can
+  carry. The one to expect from an end user's token is `token_wrong_end_user` (403): the API refuses a
+  token minted for another end user than the connection's, or for none while the connection names one,
+  and an end user resuming a move that is not theirs. Mint the token with the domain's `end_user_ref`.
+- **`@customdomain/react`**: re-exports those types. The hook does not wrap the methods (a call needs a
+  token, not a modal); a React app reaches them through the re-exported `CustomDomain` class, and the
+  README says so.
+- **Repository**: runtime tests of the three methods in `packages/sdk/test/sdk.test.mjs` (paths and
+  methods, headers, bodies, the field mapping, absent and null fields, the escaped connection id,
+  `apiBase`, consent required, refusals), and compile time asserts that the consent is required by the
+  type (`packages/sdk/src/nameserver-methods.assert.ts`) and that React re-exports the SDK's own types
+  (`packages/react/src/nameserver-parity.assert.ts`).
 
 ## [0.5.8] (2026-10-31)
 

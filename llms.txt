@@ -17,7 +17,10 @@ verification and ACME certificate issuance happen server side.
 
 - [customdomain-js README](packages/sdk/README.md): install, quickstart, the `window.customdomain`
   methods (`open(config)`, `checkDomain(domain, { token })`, `checkRecords(domain, { token,
-  dnsRecords })`, `purchaseDomain(config)`, `loadSharedFlow(url)`, `load()`, `close()`), the
+  dnsRecords })`, the nameserver methods `getNameserverMove(connectionId, { token })`,
+  `startNameserverMove(connectionId, consent, { token })` (consent required) and
+  `rollbackNameservers(connectionId, target?, { token })`, `purchaseDomain(config)`,
+  `loadSharedFlow(url)`, `load()`, `close()`), the
   options (including `getToken` for silent widget token refresh, called with a `TokenRequest`
   `{ domain?, reason: "expired" | "bind" }` so it can also mint a token bound to the domain the
   end user typed once the widget sends one, and `wwwRedirect` for root domains), and the window

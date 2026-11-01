@@ -69,6 +69,9 @@ script exposes the same instance as `window.customdomain`.
 | `open(config)` | Open the connect widget, or the flow `mode` names. Returns `{ close }`. |
 | `checkDomain(domain, { token, dnsRecords? })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. Pass `dnsRecords` to check conflicts against the records you intend to write. Every field is listed under [Pre-flight with `checkDomain`](#pre-flight-with-checkdomain). Throws a `CustomDomainError` with `status` set, see [Errors and retries](#errors-and-retries). |
 | `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. Resolves to `{ domain, inSync, records }`, one entry per record with the values observed. Throws like `checkDomain`. |
+| `getNameserverMove(connectionId, { token, apiBase? })` | A connection's nameserver move: its state, the old and new nameservers, what it waits on and what to do next. Resolves `null` when no move was started. See [Nameserver moves](#nameserver-moves). |
+| `startNameserverMove(connectionId, consent, { token, apiBase?, copyReviewed? })` | Start the move, or resume the open one, with the consent the end user gave. `consent` (`{ id, version }`) is required by the type and checked when called. |
+| `rollbackNameservers(connectionId, target?, { token, apiBase? })` | Move the nameservers back, to `previous` or `registrar_default`; with no target the API chooses. |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
 | `removeDomain(config)` | Open the widget on the removal flow for a connected domain. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`. Returns `{ close }`. See [Removing a domain](#removing-a-domain). |
 | `loadSharedFlow(url, config?)` | Resume a shared "finish setup" link with your branding. The link must be on the widget's own origin (`config.widgetBase`, or `https://app.customdomain.ai` by default), because the token you pass in `config` is sent to the page it opens. Any other link, a missing one or one that is not a URL included, throws a `CustomDomainError` with code `InvalidLinkError` and opens nothing, so a hand-off page can pass it the `link` query parameter as it arrives. |
@@ -238,6 +241,79 @@ customdomain.open({
 
 More on lasting API keys: [Secure sign-in](https://docs.customdomain.ai/docs/guides/secure-sign-in#reconnect).
 
+## Nameserver moves
+
+When your application offers DNS hosting (its `nameserver_migration` setting is `offer` or `prefer`),
+an end user can let CustomDomain™ host their domain's DNS by moving its nameservers, with their
+consent. The hosted widget shows that offer and runs the move. These three methods drive the same
+move from your own page, with the end user's widget token (`POST /v1/tokens` with `domain` and
+`end_user_ref`) over the routes the widget calls:
+
+| Method | Route | Resolves |
+|---|---|---|
+| `getNameserverMove(connectionId, { token })` | `GET /v1/connections/{id}/nameservers` | The `NameserverMove`, or `null` when no move was started (the API answers 404; an unknown connection id reads the same). |
+| `startNameserverMove(connectionId, consent, { token, copyReviewed? })` | `POST /v1/connections/{id}/nameservers:migrate` | The move as far as it got. |
+| `rollbackNameservers(connectionId, target?, { token })` | `POST /v1/connections/{id}/nameservers:rollback` | The move, `rolled_back` once the move back is made. |
+
+Each also takes `apiBase`, like `checkDomain`. `connectionId` is the id you kept from the connect
+(`jobId` of `customdomain:success`).
+
+```ts
+// Only after your page showed the end user the words of the consent text you name here.
+const consent = { id: "nsm-consent", version: "3" };
+
+let move = await customdomain.startNameserverMove(connectionId, consent, { token });
+while (!["active", "failed", "rolled_back"].includes(move.state)) {
+  await sleep(10_000);
+  move = (await customdomain.getNameserverMove(connectionId, { token })) ?? move;
+}
+if (move.state === "failed" && move.canRollback) {
+  await customdomain.rollbackNameservers(connectionId, { token }); // or ("previous" | "registrar_default", { token })
+}
+```
+
+**Consent is required.** `startNameserverMove` takes `{ id, version }`, the consent text the end user
+agreed to, and the move stores them with the time it was given, never the person's address. The type
+requires it, and the method checks it: a missing one, or one whose `id` or `version` is not a
+non-empty string, rejects with a `CustomDomainError` of code `InvalidConsentError` before anything is
+sent. The API accepts only a text the hosted widget shows and answers `400` for any other.
+
+**Reading a move.** `state` moves through `pending`, `copying`, `needs_review`, `needs_dnssec_off`,
+`waiting_ds`, `setting` and `propagating` (a move passes only the ones it needs) to `active`, and
+`failed` and `rolled_back` end it too. Poll while it is none of those three. `nextStep` is one sentence for the person, and `nextAction` is the
+one request that presses the move on, or `null` when nothing is waiting for a press: `retry` is
+`startNameserverMove` again, `rollback` is `rollbackNameservers`, and `sign_in` is the registrar
+sign-in the hosted widget runs, which has no method here. A move in `needs_review` has a copy of the
+domain's records that is not proven complete: show `copyWarnings`, and when the person has checked
+them call `startNameserverMove` again with `copyReviewed: true`. A widget token may send it only for
+a move already in `needs_review`. Every field is listed on the exported `NameserverMove` type; one
+the API did not send is absent, and the lists, counts and flags read as empty, zero and false.
+
+**Rolling back.** `target` is `previous` (the nameservers the domain had; refused with
+`old_dns_gone` once they no longer answer for the zone) or `registrar_default` (the registrar's own
+DNS). With none, the API picks: `previous` while the old nameservers still answer, else
+`registrar_default` (`rollbackDefault` on the move says which). A widget token may choose the target
+but may not send a registrar key.
+
+**Refusals.** Every call rejects with a `CustomDomainError` (`code`, `message`, `details?`,
+`status`) when the API refuses; see [Errors and retries](#errors-and-retries). The codes to expect
+are the `NameserverMoveErrorCode` type:
+
+| Code | Status | Meaning |
+|---|---|---|
+| `token_wrong_end_user` | 403 | The token is not this connection's end user's: it was minted for another end user, or for none while the connection names one. An end user also gets it for a move that is not theirs to resume. Nothing was read or changed. Mint the token with this domain's `end_user_ref` and call again. |
+| `forbidden` | 403 | The application does not offer DNS hosting, or the token may not do this. |
+| `nameserver_migration_unavailable`, `registrar_locks_nameservers`, `nameserver_agent_unavailable` | 422 | This domain's nameservers cannot be moved this way; `details` says why. |
+| `old_dns_gone`, `changed_elsewhere` | 409 | A move back that would not work: the old nameservers no longer answer for the zone (choose `registrar_default`), or the registrar lists nameservers other than the move's, so a move back would overwrite someone else's change. |
+| `registrar_refused` | 502 | The registrar did not accept the old nameservers. Nothing was changed. |
+| `registrar_unconfirmed` | 504 | The registrar's answer was lost and could not be read back, so it is not known whether the move back happened. Nothing is recorded; try again. |
+
+A start can also answer `409` (the domain already uses these nameservers, a move of it is held by
+another account or application, or another change to the move is in progress) and `400` (a consent
+the API does not accept); the code in each case is in the error. The exported types are `NameserverMove`, `NameserverMoveState`, `NameserverRegistrar`,
+`NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent`, `NameserverMoveErrorCode`
+and `ConnectionCallConfig`, and `@customdomain/react` re-exports them.
+
 ## Pre-flight with `checkDomain`
 
 `checkDomain` tells you what will happen before a user starts, without opening the widget. It
@@ -295,8 +371,8 @@ The exported types `CheckDomainResult`, `RailInfo`, `RailKey`, `DnsHostingVerdic
 
 ## Errors and retries
 
-`checkDomain` and `checkRecords` throw a `CustomDomainError` when the control plane answers with
-an error, and `onError` receives one when the widget reports an error. The class carries `code`,
+`checkDomain`, `checkRecords` and the three nameserver methods throw a `CustomDomainError` when
+the control plane answers with an error, and `onError` receives one when the widget reports an error. The class carries `code`,
 `message`, `details?` and `status?`.
 
 - `status` is the HTTP status of the response the error came from. It is unset on errors raised

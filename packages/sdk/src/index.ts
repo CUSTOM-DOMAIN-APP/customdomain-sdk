@@ -5,11 +5,13 @@
  * protocol onto BOTH callback props and native `customdomain:*` window
  * CustomEvents. Global: `window.customdomain`.
  *
- * 8 methods: open, checkDomain, checkRecords, load, loadSharedFlow, close,
- * purchaseDomain, removeDomain. 8 window CustomEvents: customdomain:success,
- * customdomain:close, customdomain:step, customdomain:doc-click,
- * customdomain:request-close, customdomain:shared, customdomain:purchase,
- * customdomain:removed.
+ * 11 methods: open, checkDomain, checkRecords, load, loadSharedFlow, close,
+ * purchaseDomain, removeDomain, and the three nameserver methods
+ * getNameserverMove, startNameserverMove and rollbackNameservers (widget token
+ * calls, typed in the `Nameserver*` types below). 8 window CustomEvents:
+ * customdomain:success, customdomain:close, customdomain:step,
+ * customdomain:doc-click, customdomain:request-close, customdomain:shared,
+ * customdomain:purchase, customdomain:removed.
  *
  * Migration compatibility (the window.entri facade + onEntri* event aliases) is
  * isolated in compat.ts and installed via installEntriCompat() — that module is
@@ -596,6 +598,201 @@ export interface CheckRecordsResult {
   records: Array<{ host: string; type: string; ok: boolean; observed: string[] }>;
 }
 
+/** What a call about one connection needs: the widget token, and where the CustomDomain API is. */
+export interface ConnectionCallConfig {
+  /** A widget token minted on your server (`POST /v1/tokens`) for this domain and the end user it belongs to. */
+  token: string;
+  /** The CustomDomain API base URL. Defaults to the one the instance was built with, else CustomDomain™ cloud. */
+  apiBase?: string;
+}
+
+/**
+ * The consent text an end user agreed to before their nameservers move, which the move stores with the
+ * time it was given (never their address). The CustomDomain API accepts only a text the hosted widget
+ * shows, so send the id and version of the text you showed, not words of your own.
+ */
+export interface NameserverConsent {
+  id: string;
+  version: string;
+}
+
+/** Where a move back goes: the nameservers the domain had before, or the registrar's own DNS. */
+export type NameserverRollbackTarget = "previous" | "registrar_default";
+
+/**
+ * Where a move stands. Poll while it is not `active`, `failed` or `rolled_back`. `needs_review`: the copy of
+ * the domain's records is not proven complete, so the person checks `copyWarnings` and the move goes on with
+ * `startNameserverMove(id, consent, { token, copyReviewed: true })`. `needs_dnssec_off` and `waiting_ds`: DNSSEC must be off
+ * first. `setting`: the nameservers are being changed (`waitingFor` says by whom). `propagating`: changed,
+ * waiting for the registry to list every new nameserver. `active`: the registry lists them. `pending` and
+ * `copying` come first.
+ */
+export type NameserverMoveState =
+  | "pending"
+  | "copying"
+  | "needs_review"
+  | "needs_dnssec_off"
+  | "waiting_ds"
+  | "setting"
+  | "propagating"
+  | "active"
+  | "failed"
+  | "rolled_back";
+
+/** The company a domain is registered with, which is where its nameservers are changed. */
+export interface NameserverRegistrar {
+  /** The brand, or the name the registry gives. */
+  name: string;
+  /** CustomDomain's provider id for it, when it routes to it. */
+  provider?: string;
+  /** The IANA Registrar ID, when the registry gives one. */
+  ianaId?: number;
+  /** The registrar's website. */
+  url?: string;
+  /** How the registrar was found (`rdap`, `request`, `account`), empty when only the name is known. */
+  source: string;
+}
+
+/**
+ * The one request that moves a stuck or waiting move on, with the connection's id filled in. `retry` is
+ * `startNameserverMove` and `rollback` is `rollbackNameservers`; `sign_in` is the registrar sign-in the hosted
+ * widget runs, which this SDK has no method for.
+ */
+export interface NameserverNextAction {
+  kind: "sign_in" | "retry" | "rollback";
+  method: "POST";
+  /** The API route, for example `/v1/connections/{id}/nameservers:migrate`. */
+  path: string;
+  /** What the route needs beyond what a client always sends: `purpose` and `provider` for `sign_in`, `rollback_target` for `rollback`. */
+  body?: Record<string, unknown>;
+}
+
+/**
+ * A nameserver move of a connection's domain: CustomDomain hosting the DNS, by changing the nameservers at the
+ * registrar with the end user's consent. Fields the answer did not carry are absent (optional), and the lists,
+ * counts and flags read as empty, zero and false, so a field a control plane predates never throws.
+ */
+export interface NameserverMove {
+  id: string;
+  connectionId?: string;
+  /** The registrable domain whose nameservers move. */
+  zone: string;
+  state: NameserverMoveState;
+  /** How the nameservers change: the registrar's API (`api`), the cloud browser sign-in (`agent`), or by hand (`manual`). */
+  path: "api" | "agent" | "manual";
+  /** Where they go: CustomDomain hosting the zone (`managed`), a zone in the platform's DNS host account (`dns_host`), or the platform's own nameservers (`custom`). */
+  target: "managed" | "dns_host" | "custom";
+  /** The DNS host of target `dns_host` (a provider id such as `cloudflare`). */
+  dnsHost?: string;
+  /** Where the nameservers are changed: the registrar's provider id, or when `registrar` is null, the DNS host the domain used, as a guess. */
+  provider?: string;
+  /** Who the domain is registered with, or `null` when unknown. */
+  registrar: NameserverRegistrar | null;
+  /** The DNS host the domain used when the move started. */
+  oldDnsHost?: string;
+  /** What the registry listed when the move started. A move back sets these. */
+  oldNameservers: string[];
+  newNameservers: string[];
+  /** What the registry listed at the last check. */
+  observedNameservers: string[];
+  /** What the move waits on, when it waits. */
+  waitingFor?:
+    | "zone_ready"
+    | "zone_served"
+    | "copy_review"
+    | "dnssec_off"
+    | "ds_clear"
+    | "credential"
+    | "registrar_confirm"
+    | "browser_session"
+    | "registrar"
+    | "delegation";
+  /** One sentence for the person: what happens or what to do next. */
+  nextStep?: string;
+  /** The request that presses the move on, or `null` when nothing is waiting for a press. */
+  nextAction: NameserverNextAction | null;
+  failureCode?:
+    | "zone_copy_failed"
+    | "zone_not_served"
+    | "dnssec_timeout"
+    | "ds_removal_failed"
+    | "credential_refused"
+    | "registrar_refused"
+    | "registrar_locked"
+    | "changed_elsewhere"
+    | "agent_failed"
+    | "delegation_timeout"
+    | "delegation_drift"
+    | "internal";
+  failureDetail?: string;
+  /** How many of the domain's records were copied to the new DNS host. */
+  recordsCopied: number;
+  /** How many of those carry mail (MX, SPF, DKIM, DMARC). */
+  emailRecords: number;
+  emailKinds: Array<"mx" | "spf" | "dkim" | "dmarc">;
+  /** `api`: the whole zone, proven complete. `discovery`: read from public DNS, so a person confirms it. `existing_zone`: the platform's zone already held records. */
+  copySource?: "api" | "discovery" | "existing_zone";
+  /** What a person should check before the switch. */
+  copyWarnings: string[];
+  copyReviewedAt?: string;
+  /** The registry published a DS record (DNSSEC was on) during the move. */
+  dsPresent: boolean;
+  dsRemovedAt?: string;
+  dsClearedAt?: string;
+  canRollback: boolean;
+  /** How the move back was made: `api`, `agent`, `manual`, or `none` (nothing had changed yet). */
+  rollbackPath?: "api" | "agent" | "manual" | "none";
+  /** The moves back possible now. */
+  rollbackTargets: NameserverRollbackTarget[];
+  /** Where a move back without a choice goes. */
+  rollbackDefault?: NameserverRollbackTarget;
+  /** Where the move back went. */
+  rollbackTarget?: NameserverRollbackTarget;
+  rollbackSetAt?: string;
+  /** Whether the old nameservers still answered for the zone when last asked, or `null` when not asked yet. */
+  oldDnsServes: boolean | null;
+  /** The consent the move was started with. */
+  consent?: { id: string; version: string; at: string };
+  actor?: "end_user" | "api_key" | "console" | "agent";
+  createdAt?: string;
+  setAt?: string;
+  activeAt?: string;
+  failedAt?: string;
+  rolledBackAt?: string;
+  driftedAt?: string;
+  checkedAt?: string;
+  nextCheckAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * The `CustomDomainError.code` values a nameserver method's rejection can carry, besides the transport
+ * ones (`http_<status>`). The union is not closed: handle the ones you know and treat any other as a
+ * failed call (`status` says whether it is worth retrying).
+ *
+ * - `token_wrong_end_user` (403): the token is not this connection's end user's: it was minted for
+ *   another end user, or for none while the connection names one. An end user also gets it for a move
+ *   that is not theirs to resume. Mint the token with this domain's `end_user_ref` (`details` says so).
+ *   Nothing was read or changed.
+ * - `forbidden` (403): the application does not offer DNS hosting, or the token may not do this.
+ * - `nameserver_migration_unavailable`, `registrar_locks_nameservers`, `nameserver_agent_unavailable` (422):
+ *   this domain's nameservers cannot be moved this way (`details` says why).
+ * - `old_dns_gone`, `changed_elsewhere` (409), `registrar_refused` (502), `registrar_unconfirmed` (504):
+ *   a move back that could not be made, with nothing changed (`registrar_unconfirmed`: try again).
+ *
+ * `getNameserverMove` also answers 404 when no move was started, which it reports as `null` instead.
+ */
+export type NameserverMoveErrorCode =
+  | "token_wrong_end_user"
+  | "forbidden"
+  | "nameserver_migration_unavailable"
+  | "registrar_locks_nameservers"
+  | "nameserver_agent_unavailable"
+  | "old_dns_gone"
+  | "changed_elsewhere"
+  | "registrar_refused"
+  | "registrar_unconfirmed";
+
 /** The longest hostname DNS allows, in characters. A longer `domain` in a token request is not one. */
 const MAX_TOKEN_REQUEST_DOMAIN = 253;
 
@@ -815,6 +1012,103 @@ export class CustomDomain {
     // was absent, not null.
     const inSync = typeof r.drift === "boolean" ? !r.drift : (r.in_sync ?? records.every((x) => x.ok));
     return { domain, inSync, records };
+  }
+
+  /**
+   * The connection's nameserver move: its state, the old and new nameservers, what it waits on and what to
+   * do next (`nextStep`, `nextAction`). Poll it while `state` is not `active`, `failed` or `rolled_back`.
+   * Resolves `null` when no move was started for the connection: the API answers 404, and an unknown
+   * connection id reads the same, so check the id if you never started one.
+   *
+   * Rides `GET /v1/connections/{id}/nameservers` with a widget token. Rejects with a `CustomDomainError`
+   * for any other refusal; see `NameserverMoveErrorCode` for the ones to expect (`token_wrong_end_user`).
+   */
+  async getNameserverMove(connectionId: string, cfg: ConnectionCallConfig): Promise<NameserverMove | null> {
+    const res = await this.connectionCall(cfg, "GET", `${connectionPath(connectionId)}/nameservers`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw await toError(res);
+    return nameserverMoveFrom(await res.json());
+  }
+
+  /**
+   * Start the connection's nameserver move, or resume the open one, with the consent the end user gave.
+   * `consent` is required: pass the id and version of the text you showed them (a missing one, or one
+   * whose id or version is not a non-empty string, rejects with code `InvalidConsentError` before anything
+   * is sent). Resolves the move as far as it got; poll `getNameserverMove` from there.
+   *
+   * `cfg.copyReviewed: true` confirms the copy of the domain's records for a move in `needs_review`; the
+   * API accepts it from a widget token only for a move already in that state.
+   *
+   * Rides `POST /v1/connections/{id}/nameservers:migrate` with a widget token, which may not choose the
+   * target, send a registrar key or skip the zone check; the application's own DNS hosting setting decides
+   * where the nameservers go and whether it is offered at all. Rejects with a `CustomDomainError` when the
+   * API refuses: `NameserverMoveErrorCode` lists the ones to expect (`token_wrong_end_user` for another
+   * end user's connection, `forbidden` when the application does not offer DNS hosting, and 409 or 422
+   * answers whose `details` say why).
+   */
+  async startNameserverMove(
+    connectionId: string,
+    consent: NameserverConsent,
+    cfg: ConnectionCallConfig & { copyReviewed?: boolean }
+  ): Promise<NameserverMove> {
+    const text = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
+    if (!consent || !text(consent.id) || !text(consent.version)) {
+      throw new CustomDomainError(
+        "InvalidConsentError",
+        "startNameserverMove needs the consent the end user agreed to, as { id, version }; the move was not started"
+      );
+    }
+    const res = await this.connectionCall(cfg, "POST", `${connectionPath(connectionId)}/nameservers:migrate`, {
+      consent: { id: consent.id, version: consent.version },
+      ...(cfg.copyReviewed ? { copy_reviewed: true } : {}),
+    });
+    if (!res.ok) throw await toError(res);
+    return nameserverMoveFrom(await res.json());
+  }
+
+  /**
+   * Move the domain's nameservers back: to `previous` (the nameservers it had) or `registrar_default` (the
+   * registrar's own DNS). With no target the API chooses: the old nameservers while they still answer for
+   * the zone, else the registrar's own DNS (`rollbackDefault` on the move says which). Resolves the move,
+   * `rolled_back` once it is done; a move back that needs the person at the registrar says so in `nextStep`.
+   *
+   * Rides `POST /v1/connections/{id}/nameservers:rollback` with a widget token, which may choose the
+   * target but may not send a registrar key. Rejects with a `CustomDomainError` when the API refuses:
+   * `NameserverMoveErrorCode` lists the ones to expect (`token_wrong_end_user`, `old_dns_gone`,
+   * `changed_elsewhere`, `registrar_refused`, `registrar_unconfirmed`).
+   */
+  rollbackNameservers(connectionId: string, cfg: ConnectionCallConfig): Promise<NameserverMove>;
+  rollbackNameservers(
+    connectionId: string,
+    target: NameserverRollbackTarget | undefined,
+    cfg: ConnectionCallConfig
+  ): Promise<NameserverMove>;
+  async rollbackNameservers(
+    connectionId: string,
+    targetOrConfig: NameserverRollbackTarget | undefined | ConnectionCallConfig,
+    maybeConfig?: ConnectionCallConfig
+  ): Promise<NameserverMove> {
+    const withTarget = typeof targetOrConfig !== "object" || targetOrConfig === null;
+    const cfg = (withTarget ? maybeConfig : targetOrConfig) as ConnectionCallConfig;
+    const target = withTarget ? targetOrConfig : undefined;
+    const res = await this.connectionCall(
+      cfg,
+      "POST",
+      `${connectionPath(connectionId)}/nameservers:rollback`,
+      target ? { rollback_target: target } : {}
+    );
+    if (!res.ok) throw await toError(res);
+    return nameserverMoveFrom(await res.json());
+  }
+
+  /** One bearer-authorized call about a connection. A GET sends no body and no content type. */
+  private connectionCall(cfg: ConnectionCallConfig, method: "GET" | "POST", path: string, body?: unknown): Promise<Response> {
+    const authorization = `Bearer ${cfg.token}`;
+    return fetch(`${cfg.apiBase || this.apiBase}${path}`, {
+      method,
+      headers: body === undefined ? { authorization } : { "content-type": "application/json", authorization },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   }
 
   /** Open the embedded modal to connect a domain (the incumbent's modal-open method). */
@@ -1222,6 +1516,80 @@ async function toError(res: Response): Promise<CustomDomainError> {
   } catch {
     return new CustomDomainError(`http_${res.status}`, res.statusText, undefined, res.status);
   }
+}
+
+/** `/v1/connections/{id}`, the id escaped so one that holds a slash or a colon stays a single path segment. */
+function connectionPath(connectionId: string): string {
+  return `/v1/connections/${encodeURIComponent(connectionId)}`;
+}
+
+/**
+ * A nameserver move from the wire (snake_case) to the camelCase view. A field the answer did not carry
+ * (or sent as null) is left off the object, except the lists, counts and flags and the three nullable
+ * ones (`registrar`, `nextAction`, `oldDnsServes`), which read as empty, zero, false and null.
+ */
+function nameserverMoveFrom(m: any): NameserverMove {
+  const a = m ?? {};
+  const registrar = a.registrar;
+  const action = a.next_action;
+  const consent = a.consent;
+  return {
+    id: a.id,
+    ...(a.connection_id != null ? { connectionId: a.connection_id } : {}),
+    zone: a.zone,
+    state: a.state,
+    path: a.path,
+    target: a.target,
+    ...(a.dns_host != null ? { dnsHost: a.dns_host } : {}),
+    ...(a.provider != null ? { provider: a.provider } : {}),
+    registrar: registrar
+      ? {
+          name: registrar.name,
+          ...(registrar.provider != null ? { provider: registrar.provider } : {}),
+          ...(registrar.iana_id != null ? { ianaId: registrar.iana_id } : {}),
+          ...(registrar.url != null ? { url: registrar.url } : {}),
+          source: registrar.source ?? "",
+        }
+      : null,
+    ...(a.old_dns_host != null ? { oldDnsHost: a.old_dns_host } : {}),
+    oldNameservers: a.old_nameservers ?? [],
+    newNameservers: a.new_nameservers ?? [],
+    observedNameservers: a.observed_nameservers ?? [],
+    ...(a.waiting_for != null ? { waitingFor: a.waiting_for } : {}),
+    ...(a.next_step != null ? { nextStep: a.next_step } : {}),
+    nextAction: action
+      ? { kind: action.kind, method: action.method, path: action.path, ...(action.body != null ? { body: action.body } : {}) }
+      : null,
+    ...(a.failure_code != null ? { failureCode: a.failure_code } : {}),
+    ...(a.failure_detail != null ? { failureDetail: a.failure_detail } : {}),
+    recordsCopied: a.records_copied ?? 0,
+    emailRecords: a.email_records ?? 0,
+    emailKinds: a.email_kinds ?? [],
+    ...(a.copy_source != null ? { copySource: a.copy_source } : {}),
+    copyWarnings: a.copy_warnings ?? [],
+    ...(a.copy_reviewed_at != null ? { copyReviewedAt: a.copy_reviewed_at } : {}),
+    dsPresent: a.ds_present ?? false,
+    ...(a.ds_removed_at != null ? { dsRemovedAt: a.ds_removed_at } : {}),
+    ...(a.ds_cleared_at != null ? { dsClearedAt: a.ds_cleared_at } : {}),
+    canRollback: a.can_rollback ?? false,
+    ...(a.rollback_path != null ? { rollbackPath: a.rollback_path } : {}),
+    rollbackTargets: a.rollback_targets ?? [],
+    ...(a.rollback_default != null ? { rollbackDefault: a.rollback_default } : {}),
+    ...(a.rollback_target != null ? { rollbackTarget: a.rollback_target } : {}),
+    ...(a.rollback_set_at != null ? { rollbackSetAt: a.rollback_set_at } : {}),
+    oldDnsServes: a.old_dns_serves ?? null,
+    ...(consent ? { consent: { id: consent.id, version: consent.version, at: consent.at } } : {}),
+    ...(a.actor != null ? { actor: a.actor } : {}),
+    ...(a.created_at != null ? { createdAt: a.created_at } : {}),
+    ...(a.set_at != null ? { setAt: a.set_at } : {}),
+    ...(a.active_at != null ? { activeAt: a.active_at } : {}),
+    ...(a.failed_at != null ? { failedAt: a.failed_at } : {}),
+    ...(a.rolled_back_at != null ? { rolledBackAt: a.rolled_back_at } : {}),
+    ...(a.drifted_at != null ? { driftedAt: a.drifted_at } : {}),
+    ...(a.checked_at != null ? { checkedAt: a.checked_at } : {}),
+    ...(a.next_check_at != null ? { nextCheckAt: a.next_check_at } : {}),
+    ...(a.updated_at != null ? { updatedAt: a.updated_at } : {}),
+  };
 }
 
 /** Default singleton, attached to window in browsers. */
