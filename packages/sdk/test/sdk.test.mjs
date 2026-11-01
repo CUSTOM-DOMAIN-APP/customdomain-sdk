@@ -907,3 +907,117 @@ test("an error answer that is not JSON still becomes a CustomDomainError with th
     await assert.rejects(call, (err) => err.name === "CustomDomainError" && err.code === "http_502" && err.status === 502 && err.message === "status 502");
   }
 });
+
+// getConnection reads a connection with a widget token and maps the `dns_hosting` field: who runs the
+// domain's DNS (a zone CustomDomain hosts, a move to one, or none).
+
+/** A connection as the API sends it to a widget token, with the fields the view keeps and some it must not. */
+const CONNECTION_WIRE = {
+  id: "conn_1",
+  application_id: "app_1",
+  domain: "shop.acme.com",
+  host: "shop",
+  provider_id: "cloudflare",
+  setup_type: "automatic",
+  status: "live",
+  created_at: "2026-10-30T09:00:00Z",
+  dns_hosting: { state: "hosted", by: "dns_host", provider: "cloudflare", zone: "acme.com", since: "2026-10-31T08:30:00Z" },
+  // Not part of the view.
+  managed: true,
+  end_user_ref: "user_7",
+  routing: { kind: "edge" },
+  records: [{ type: "CNAME", host: "shop", value: "edge.customdomain.ai" }],
+  error_code: "propagation_timeout",
+};
+
+const CONNECTION_VIEW = {
+  id: "conn_1",
+  applicationId: "app_1",
+  domain: "shop.acme.com",
+  host: "shop",
+  providerId: "cloudflare",
+  setupType: "automatic",
+  status: "live",
+  createdAt: "2026-10-30T09:00:00Z",
+  dnsHosting: { state: "hosted", by: "dns_host", provider: "cloudflare", zone: "acme.com", since: "2026-10-31T08:30:00Z" },
+};
+
+const CONNECTION_BARE_WIRE = { id: "conn_2", application_id: "app_1", domain: "acme.com", setup_type: "manual", status: "pending", created_at: "2026-10-30T09:00:00Z" };
+const CONNECTION_BARE_VIEW = { id: "conn_2", applicationId: "app_1", domain: "acme.com", setupType: "manual", status: "pending", createdAt: "2026-10-30T09:00:00Z" };
+
+test("getConnection reads GET /v1/connections/{id} with the token and maps the view, dnsHosting included", async () => {
+  const requests = stubFetch(200, CONNECTION_WIRE);
+  const connection = await nsSdk().getConnection("conn_1", NS_CFG);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, `${NS_API}/v1/connections/conn_1`);
+  assert.equal(requests[0].init.method, "GET");
+  assert.equal(requests[0].init.headers.authorization, "Bearer tok_ns");
+  assert.equal(requests[0].init.body, undefined, "a read sends no body");
+  assert.deepEqual(connection, CONNECTION_VIEW);
+});
+
+test("getConnection keeps only the view's fields: records, routing and the rest of the connection do not come through", async () => {
+  stubFetch(200, CONNECTION_WIRE);
+  const connection = await nsSdk().getConnection("conn_1", NS_CFG);
+  for (const key of ["managed", "endUserRef", "end_user_ref", "routing", "records", "errorCode", "error_code"]) {
+    assert.equal(key in connection, false, `${key} reached the caller`);
+  }
+  assert.deepEqual(Object.keys(connection).sort(), Object.keys(CONNECTION_VIEW).sort());
+});
+
+test("getConnection leaves dnsHosting off when the control plane sends none, and every optional field off a bare connection", async () => {
+  stubFetch(200, CONNECTION_BARE_WIRE);
+  const connection = await nsSdk().getConnection("conn_2", NS_CFG);
+  assert.deepEqual(connection, CONNECTION_BARE_VIEW);
+  for (const absent of ["dnsHosting", "host", "providerId"]) assert.equal(absent in connection, false, `${absent} is set though the answer had none`);
+
+  // Null reads as absent too.
+  stubFetch(200, { ...CONNECTION_BARE_WIRE, host: null, provider_id: null, dns_hosting: null });
+  assert.deepEqual(await nsSdk().getConnection("conn_2", NS_CFG), CONNECTION_BARE_VIEW);
+});
+
+test("getConnection maps each dns_hosting state, and leaves the fields of a state that has none off", async () => {
+  const hostingOf = async (dns_hosting) => {
+    stubFetch(200, { ...CONNECTION_BARE_WIRE, dns_hosting });
+    return (await nsSdk().getConnection("conn_2", NS_CFG)).dnsHosting;
+  };
+  // `none`: nothing of ours runs the DNS, and no other field is set.
+  const none = await hostingOf({ state: "none" });
+  assert.deepEqual(none, { state: "none" });
+  for (const absent of ["by", "provider", "zone", "since"]) assert.equal(absent in none, false);
+  assert.deepEqual(await hostingOf({ state: "moving", by: "customdomain", zone: "acme.com", since: "2026-10-31T08:00:00Z" }), {
+    state: "moving", by: "customdomain", zone: "acme.com", since: "2026-10-31T08:00:00Z",
+  });
+  assert.deepEqual(await hostingOf({ state: "hosted", by: "custom", zone: "acme.com", since: "2026-10-31T08:30:00Z" }), {
+    state: "hosted", by: "custom", zone: "acme.com", since: "2026-10-31T08:30:00Z",
+  });
+  assert.deepEqual(await hostingOf({ state: "failed", by: "dns_host", provider: "route53", zone: "acme.com", since: "2026-10-31T09:00:00Z" }), {
+    state: "failed", by: "dns_host", provider: "route53", zone: "acme.com", since: "2026-10-31T09:00:00Z",
+  });
+  // Null fields inside it read as absent.
+  assert.deepEqual(await hostingOf({ state: "none", by: null, provider: null, zone: null, since: null }), { state: "none" });
+});
+
+test("getConnection leaves dnsHosting off when dns_hosting is not an object with a string state", async () => {
+  for (const junk of [{}, { by: "customdomain" }, { state: 7 }, { state: null }, "hosted", 1, true, []]) {
+    stubFetch(200, { ...CONNECTION_BARE_WIRE, dns_hosting: junk });
+    const connection = await nsSdk().getConnection("conn_2", NS_CFG);
+    assert.equal("dnsHosting" in connection, false, JSON.stringify(junk));
+    assert.equal(connection.id, "conn_2");
+  }
+});
+
+test("getConnection escapes the id, honours cfg.apiBase and surfaces refusals as CustomDomainError", async () => {
+  const requests = stubFetch(200, CONNECTION_BARE_WIRE);
+  await nsSdk().getConnection("conn/1 x:y", { token: "t", apiBase: "https://other.test" });
+  assert.equal(requests[0].url, "https://other.test/v1/connections/conn%2F1%20x%3Ay");
+
+  for (const [status, code] of [[401, "unauthorized"], [403, "forbidden"], [404, "not_found"], [503, "unavailable"]]) {
+    stubFetch(status, { code, title: `title ${code}`, details: `details ${code}` });
+    await assert.rejects(
+      () => nsSdk().getConnection("conn_1", NS_CFG),
+      (err) => err.name === "CustomDomainError" && err.code === code && err.status === status && err.message === `title ${code}` && err.details === `details ${code}`,
+      `${status} ${code}`
+    );
+  }
+});

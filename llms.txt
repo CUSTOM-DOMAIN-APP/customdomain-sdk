@@ -19,7 +19,8 @@ verification and ACME certificate issuance happen server side.
   methods (`open(config)`, `checkDomain(domain, { token })`, `checkRecords(domain, { token,
   dnsRecords })`, the nameserver methods `getNameserverMove(connectionId, { token })`,
   `startNameserverMove(connectionId, consent, { token })` (consent required) and
-  `rollbackNameservers(connectionId, target?, { token })`, `purchaseDomain(config)`,
+  `rollbackNameservers(connectionId, target?, { token })`, `getConnection(connectionId, { token })`
+  (whose `dnsHosting` says who runs the domain's DNS), `purchaseDomain(config)`,
   `loadSharedFlow(url)`, `load()`, `close()`), the
   options (including `getToken` for silent widget token refresh, called with a `TokenRequest`
   `{ domain?, reason: "expired" | "bind" }` so it can also mint a token bound to the domain the

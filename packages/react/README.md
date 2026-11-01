@@ -195,11 +195,12 @@ More on lasting API keys: [Secure sign-in](https://docs.customdomain.ai/docs/gui
 ## Nameserver moves
 
 The three nameserver methods, `getNameserverMove`, `startNameserverMove` and `rollbackNameservers`,
-are methods of the SDK instance, not of the hook: a call needs the end user's widget token, not a
-modal. Reach them through the `CustomDomain` class this package re-exports, and import their types
+and `getConnection`, which reads a connection's `dnsHosting` (who runs the domain's DNS), are methods
+of the SDK instance, not of the hook: a call needs the end user's widget token, not a modal. Reach
+them through the `CustomDomain` class this package re-exports, and import their types
 (`NameserverMove`, `NameserverMoveState`, `NameserverConsent`, `NameserverRollbackTarget`,
-`NameserverMoveErrorCode` and the rest) from here. `startNameserverMove` requires the end user's
-consent. Everything about them is in the
+`NameserverMoveErrorCode`, `Connection`, `ConnectionDnsHosting` and the rest) from here.
+`startNameserverMove` requires the end user's consent. Everything about them is in the
 [SDK README](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/packages/sdk/README.md#nameserver-moves).
 
 ```tsx

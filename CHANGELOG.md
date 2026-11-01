@@ -55,20 +55,30 @@ missing, the workflow falls back to notes generated from commits and pull reques
   `needs_review`, as the widget does. `rollbackNameservers` takes the target before the config, or no
   target: `rollbackNameservers(id, { token })` and `rollbackNameservers(id, "previous", { token })`.
   A refusal rejects with a `CustomDomainError` carrying the API's `code`, `status` and `details`.
+- **`customdomain-js`**: `getConnection(connectionId, { token, apiBase? })` and the connection's
+  `dns_hosting` field. It reads `GET /v1/connections/{id}` with a widget token and resolves a
+  `Connection` view: `id`, `applicationId`, `domain`, `host?`, `providerId?`, `setupType`, `status`,
+  `createdAt` and `dnsHosting?`. Only those fields come through, so nothing else the answer carries
+  (records, routing) reaches the caller. `dnsHosting`, a `ConnectionDnsHosting`, says who runs the
+  domain's DNS: `state` is `none`, `moving`, `hosted` or `failed`, with `by?` (`customdomain`,
+  `dns_host` or `custom`), `provider?`, `zone?` and `since?`; it is left off when the control plane
+  sends none. The SDK had no way to read a connection before, so the field needed one.
 - **`customdomain-js`**: the exported types `NameserverMove`, `NameserverMoveState`,
-  `NameserverRegistrar`, `NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent` and
-  `ConnectionCallConfig`, and `NameserverMoveErrorCode`, the codes the three methods' rejections can
+  `NameserverRegistrar`, `NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent`,
+  `ConnectionCallConfig`, `Connection` and `ConnectionDnsHosting`, and `NameserverMoveErrorCode`, the codes the three methods' rejections can
   carry. The one to expect from an end user's token is `token_wrong_end_user` (403): the API refuses a
   token minted for another end user than the connection's, or for none while the connection names one,
   and an end user resuming a move that is not theirs. Mint the token with the domain's `end_user_ref`.
 - **`@customdomain/react`**: re-exports those types. The hook does not wrap the methods (a call needs a
   token, not a modal); a React app reaches them through the re-exported `CustomDomain` class, and the
   README says so.
-- **Repository**: runtime tests of the three methods in `packages/sdk/test/sdk.test.mjs` (paths and
-  methods, headers, bodies, the field mapping, absent and null fields, the escaped connection id,
-  `apiBase`, consent required, refusals), and compile time asserts that the consent is required by the
-  type (`packages/sdk/src/nameserver-methods.assert.ts`) and that React re-exports the SDK's own types
-  (`packages/react/src/nameserver-parity.assert.ts`).
+- **Repository**: runtime tests of the three methods and of `getConnection` in
+  `packages/sdk/test/sdk.test.mjs` (paths and methods, headers, bodies, the field mapping, absent and
+  null fields, the escaped connection id, `apiBase`, consent required, refusals), and compile time
+  asserts that the consent is required by the type (`packages/sdk/src/nameserver-methods.assert.ts`),
+  that `dnsHosting` is optional (`packages/sdk/src/connection-read.assert.ts`) and that React
+  re-exports the SDK's own types (`packages/react/src/nameserver-parity.assert.ts` and
+  `connection-parity.assert.ts`).
 
 ## [0.5.8] (2026-10-31)
 

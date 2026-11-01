@@ -72,6 +72,7 @@ script exposes the same instance as `window.customdomain`.
 | `getNameserverMove(connectionId, { token, apiBase? })` | A connection's nameserver move: its state, the old and new nameservers, what it waits on and what to do next. Resolves `null` when no move was started. See [Nameserver moves](#nameserver-moves). |
 | `startNameserverMove(connectionId, consent, { token, apiBase?, copyReviewed? })` | Start the move, or resume the open one, with the consent the end user gave. `consent` (`{ id, version }`) is required by the type and checked when called. |
 | `rollbackNameservers(connectionId, target?, { token, apiBase? })` | Move the nameservers back, to `previous` or `registrar_default`; with no target the API chooses. |
+| `getConnection(connectionId, { token, apiBase? })` | Read a connection: its identity, status and `dnsHosting`, who runs the domain's DNS. See [Who runs a domain's DNS](#who-runs-a-domains-dns). |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
 | `removeDomain(config)` | Open the widget on the removal flow for a connected domain. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`. Returns `{ close }`. See [Removing a domain](#removing-a-domain). |
 | `loadSharedFlow(url, config?)` | Resume a shared "finish setup" link with your branding. The link must be on the widget's own origin (`config.widgetBase`, or `https://app.customdomain.ai` by default), because the token you pass in `config` is sent to the page it opens. Any other link, a missing one or one that is not a URL included, throws a `CustomDomainError` with code `InvalidLinkError` and opens nothing, so a hand-off page can pass it the `link` query parameter as it arrives. |
@@ -314,6 +315,27 @@ the API does not accept); the code in each case is in the error. The exported ty
 `NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent`, `NameserverMoveErrorCode`
 and `ConnectionCallConfig`, and `@customdomain/react` re-exports them.
 
+### Who runs a domain's DNS
+
+`getConnection(connectionId, { token })` reads the connection (`GET /v1/connections/{id}`) with the same
+widget token and resolves a small `Connection` view: `id`, `applicationId`, `domain`, `host?` (the
+subdomain label, empty or absent for the root), `providerId?`, `setupType`, `status` (`pending`,
+`propagating`, `live` or `failed`), `createdAt` and `dnsHosting`. Only those fields come through: the
+connection's records, routing and the rest are not in the view. `dnsHosting` says who runs the
+domain's DNS, so you can see that a domain is already hosted without asking for its move:
+
+| Field | Meaning |
+|---|---|
+| `state` | `none`: nothing of CustomDomain's runs the domain's DNS, and no other field is set. `moving`: the zone is being set up or the nameservers are being moved, and the domain is not served from it yet. `hosted`: the nameservers point at the zone, which is what the world resolves. `failed`: the zone never became active, or the domain moved its nameservers away again; someone has to look. |
+| `by` | Who runs the DNS: `customdomain` (CustomDomain's own managed DNS), `dns_host` (CustomDomain's account at a DNS host it integrates with; `provider` names it) or `custom` (the platform's own nameservers). Absent when `state` is `none`. |
+| `provider` | The DNS host's provider id when `by` is `dns_host`, for example `cloudflare`. |
+| `zone` | The zone that is hosted or being set up: the connection's domain or a parent of it (`acme.com` for `shop.acme.com`). |
+| `since` | When the domain reached this state. |
+
+`dnsHosting` is absent when the control plane does not send it, so test for it before you read
+`state`. A 404 for an unknown connection rejects with a `CustomDomainError` like any other refusal.
+The exported types are `Connection` and `ConnectionDnsHosting`, and `@customdomain/react` re-exports them.
+
 ## Pre-flight with `checkDomain`
 
 `checkDomain` tells you what will happen before a user starts, without opening the widget. It
@@ -371,8 +393,8 @@ The exported types `CheckDomainResult`, `RailInfo`, `RailKey`, `DnsHostingVerdic
 
 ## Errors and retries
 
-`checkDomain`, `checkRecords` and the three nameserver methods throw a `CustomDomainError` when
-the control plane answers with an error, and `onError` receives one when the widget reports an error. The class carries `code`,
+`checkDomain`, `checkRecords`, `getConnection` and the three nameserver methods throw a
+`CustomDomainError` when the control plane answers with an error, and `onError` receives one when the widget reports an error. The class carries `code`,
 `message`, `details?` and `status?`.
 
 - `status` is the HTTP status of the response the error came from. It is unset on errors raised

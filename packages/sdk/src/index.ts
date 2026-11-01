@@ -5,10 +5,10 @@
  * protocol onto BOTH callback props and native `customdomain:*` window
  * CustomEvents. Global: `window.customdomain`.
  *
- * 11 methods: open, checkDomain, checkRecords, load, loadSharedFlow, close,
- * purchaseDomain, removeDomain, and the three nameserver methods
- * getNameserverMove, startNameserverMove and rollbackNameservers (widget token
- * calls, typed in the `Nameserver*` types below). 8 window CustomEvents:
+ * 12 methods: open, checkDomain, checkRecords, load, loadSharedFlow, close,
+ * purchaseDomain, removeDomain, the three nameserver methods getNameserverMove,
+ * startNameserverMove and rollbackNameservers, and getConnection (widget token
+ * calls, typed in the `Nameserver*` and `Connection*` types below). 8 window CustomEvents:
  * customdomain:success, customdomain:close, customdomain:step,
  * customdomain:doc-click, customdomain:request-close, customdomain:shared,
  * customdomain:purchase, customdomain:removed.
@@ -793,6 +793,48 @@ export type NameserverMoveErrorCode =
   | "registrar_refused"
   | "registrar_unconfirmed";
 
+/**
+ * Who runs a domain's DNS, on `Connection.dnsHosting`: a zone CustomDomain hosts, or a move to one. `state`
+ * `none`: nothing of CustomDomain's runs the domain's DNS, and no other field is set. `moving`: the zone is
+ * being set up or the nameservers are being moved, and the domain is not served from it yet. `hosted`: the
+ * nameservers point at the zone, which is what the world resolves. `failed`: the zone never became active, or
+ * the domain moved its nameservers away again; someone has to look.
+ */
+export interface ConnectionDnsHosting {
+  state: "none" | "moving" | "hosted" | "failed";
+  /**
+   * Who runs the DNS: CustomDomain's own managed DNS (`customdomain`), CustomDomain's account at a DNS host
+   * it integrates with (`dns_host`, which `provider` names), or the platform's own nameservers (`custom`).
+   * Absent when `state` is `none`.
+   */
+  by?: "customdomain" | "dns_host" | "custom";
+  /** The DNS host's provider id when `by` is `dns_host`, for example `cloudflare`. */
+  provider?: string;
+  /** The zone that is hosted or being set up: the connection's domain or a parent of it (`acme.com` for `shop.acme.com`). */
+  zone?: string;
+  /** When the domain reached this state: the zone's activation, the start of the move, or the failure. */
+  since?: string;
+}
+
+/**
+ * A connection as `getConnection` reads it: its identity, status and `dnsHosting`. It is a view of those
+ * fields, not the whole object; the connection's records, routing and the rest are not in it.
+ */
+export interface Connection {
+  id: string;
+  applicationId: string;
+  domain: string;
+  /** The subdomain label of the connection; empty or absent for the apex. */
+  host?: string;
+  /** The DNS provider detected or applied for the domain. */
+  providerId?: string;
+  setupType: string;
+  status: "pending" | "propagating" | "live" | "failed";
+  createdAt: string;
+  /** Who runs the domain's DNS. Absent when the control plane does not send it (one that predates it). */
+  dnsHosting?: ConnectionDnsHosting;
+}
+
 /** The longest hostname DNS allows, in characters. A longer `domain` in a token request is not one. */
 const MAX_TOKEN_REQUEST_DOMAIN = 253;
 
@@ -1099,6 +1141,18 @@ export class CustomDomain {
     );
     if (!res.ok) throw await toError(res);
     return nameserverMoveFrom(await res.json());
+  }
+
+  /**
+   * Read a connection with a widget token (`GET /v1/connections/{id}`): the `Connection` view, whose
+   * `dnsHosting` says who runs the domain's DNS (a zone CustomDomain hosts, a move to one, or none). It is
+   * the field to read to see that a domain is already hosted without asking for its nameserver move.
+   * Rejects with a `CustomDomainError` when the API refuses, a 404 for an unknown connection included.
+   */
+  async getConnection(connectionId: string, cfg: ConnectionCallConfig): Promise<Connection> {
+    const res = await this.connectionCall(cfg, "GET", connectionPath(connectionId));
+    if (!res.ok) throw await toError(res);
+    return connectionFrom(await res.json());
   }
 
   /** One bearer-authorized call about a connection. A GET sends no body and no content type. */
@@ -1521,6 +1575,37 @@ async function toError(res: Response): Promise<CustomDomainError> {
 /** `/v1/connections/{id}`, the id escaped so one that holds a slash or a colon stays a single path segment. */
 function connectionPath(connectionId: string): string {
   return `/v1/connections/${encodeURIComponent(connectionId)}`;
+}
+
+/**
+ * A connection from the wire to the `Connection` view: only the fields it names, so nothing else the answer
+ * carries (its records, routing, a credential) reaches the caller through it. `dns_hosting` is read only when
+ * it is an object with a string `state`; anything else leaves `dnsHosting` off.
+ */
+function connectionFrom(c: any): Connection {
+  const a = c ?? {};
+  const d = a.dns_hosting;
+  const dnsHosting: ConnectionDnsHosting | undefined =
+    d && typeof d.state === "string"
+      ? {
+          state: d.state,
+          ...(d.by != null ? { by: d.by } : {}),
+          ...(d.provider != null ? { provider: d.provider } : {}),
+          ...(d.zone != null ? { zone: d.zone } : {}),
+          ...(d.since != null ? { since: d.since } : {}),
+        }
+      : undefined;
+  return {
+    id: a.id,
+    applicationId: a.application_id,
+    domain: a.domain,
+    ...(a.host != null ? { host: a.host } : {}),
+    ...(a.provider_id != null ? { providerId: a.provider_id } : {}),
+    setupType: a.setup_type,
+    status: a.status,
+    createdAt: a.created_at,
+    ...(dnsHosting ? { dnsHosting } : {}),
+  };
 }
 
 /**

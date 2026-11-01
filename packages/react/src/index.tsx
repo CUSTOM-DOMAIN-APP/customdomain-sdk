@@ -49,9 +49,11 @@ export type {
   IntegrationWarning,
   ManagedDnsAvailability,
   CheckRecordsResult,
-  // The nameserver methods are methods of the SDK instance (`new CustomDomain()`), not of the hook: a
-  // call needs a token, not a modal. Their types are re-exported so a React app imports them from here.
+  // The nameserver methods and getConnection are methods of the SDK instance (`new CustomDomain()`), not of
+  // the hook: a call needs a token, not a modal. Their types are re-exported so a React app imports them from here.
   ConnectionCallConfig,
+  Connection,
+  ConnectionDnsHosting,
   NameserverConsent,
   NameserverMove,
   NameserverMoveState,
