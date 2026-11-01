@@ -39,7 +39,6 @@ missing, the workflow falls back to notes generated from commits and pull reques
 ---
 
 ## [Unreleased]
-
 ### Added
 
 - **`customdomain-js`**: `RailKey`, the lasting API key a secure sign-in makes (`rails.cloudBrowser.key`
