@@ -274,8 +274,8 @@ Every field of `CheckDomainResult`. Optional fields are absent when the server d
 | `willFallbackToManual` | `boolean` | The server's prediction that the one-click rail would quietly become a manual record list for this domain. |
 | `apexSupported` | `boolean` | Provider fact: it can host a CNAME-like record at the zone root. |
 | `apexMessage` | `string` | This-domain verdict, non-empty exactly when the apply would refuse the record set. Gate warnings on this, not on `apexSupported`. |
-| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser?, nameservers?, savedAccess? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. An available `oauth` rail also carries `flow` (the sign-in it runs) and `managed` (the connect keeps its credential). `cloudBrowser` is present only when that rail is switched on for your application, and its `reason` can name the caller instead of the provider: `caller_cannot_start` (an agent, a plain API call without the console, or a role that cannot write connections) or `token_not_bound` (the widget token is not bound to this domain, see [Tokens for the domain the user typed](#tokens-for-the-domain-the-user-typed)); when its sign-in also makes a lasting API key, `key` says what the key can do beyond DNS (`rights`) and when it ends (`endsInDays`, `null` for never). `nameservers` is the DNS hosting verdict (`verdict`: `offered`, `offered_first`, `recommended` or `unavailable`, and `reason`), present when the application offers DNS hosting. `savedAccess` lists the kept provider keys that may act for the domain (`available`, `accounts` of `SavedAccess`, best first); a widget token gets `available: false` and no accounts, so a page never shows them. |
-| `recommendedRail` | `"saved_access" \| "oauth" \| "domain_connect" \| "cloud_browser" \| "api_key" \| "manual"` | The rail the widget will pick. `saved_access` only reaches an API key caller. |
+| `rails` | `{ oauth, domainConnect, apiKey, manual, cloudBrowser?, nameservers?, savedAccess? }` | Per rail, a `RailInfo`: `available`, a machine `reason` present exactly when it is not, and a `caveat` for an available rail most users still cannot use. An available `oauth` rail also carries `flow` (the sign-in it runs) and `managed` (the connect keeps its credential). `cloudBrowser` is present only when that rail is switched on for your application, and its `reason` can name the caller instead of the provider: `caller_cannot_start` (an agent, a plain API call without the console, or a role that cannot write connections) or `token_not_bound` (the widget token is not bound to this domain, see [Tokens for the domain the user typed](#tokens-for-the-domain-the-user-typed)); when its sign-in also makes a lasting API key, `key` says what the key is called (`name`), where the provider lets a person delete keys (`deleteUrl`), what it can do beyond DNS (`rights`) and when it ends (`endsInDays`, `null` for never); see [The key a sign-in makes](#the-key-a-sign-in-makes). `nameservers` is the DNS hosting verdict (`verdict`: `offered`, `offered_first`, `recommended` or `unavailable`, and `reason`), present when the application offers DNS hosting. `savedAccess` lists the kept provider keys that may act for the domain (`available`, `accounts` of `SavedAccess`, best first). An API key gets the workspace's keys, and an end user's widget token gets that end user's own keys when the application allows it (see [An end user's saved access](#an-end-users-saved-access)); any other widget token gets none. |
+| `recommendedRail` | `"saved_access" \| "oauth" \| "domain_connect" \| "cloud_browser" \| "api_key" \| "manual"` | The rail the widget will pick. `saved_access` reaches an API key caller and, when the application allows it, an end user's widget token that has a kept key of its own. |
 | `alsoProvider` | `{ provider, providerName, reason: "former_google_domains" }` | Set when the registrar and the nameservers name two providers: a former Google Domains name is Squarespace's now and keeps Google's nameservers, which Google Cloud DNS zones use too. `provider` is then the registrar's. |
 | `endUserAutomatic` | `boolean` | True when the recommended rail needs nothing typed by the end user. |
 | `blockedReason` | `"unregistered" \| "platform_subdomain"` | Set when no rail can connect the domain at all. |
@@ -292,6 +292,44 @@ Every field of `CheckDomainResult`. Optional fields are absent when the server d
 The exported types `CheckDomainResult`, `RailInfo`, `RailKey`, `DnsHostingVerdict`,
 `SavedAccess`, `SavedAccessRail`, `AlsoProvider`, `IntegrationWarning` and
 `ManagedDnsAvailability` describe this shape, and `@customdomain/react` re-exports them.
+
+### The key a sign-in makes
+
+When the secure sign-in also makes a lasting API key at the provider, `rails.cloudBrowser.key`
+describes it before the person signs in, so your page can say what they are agreeing to:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | `string`, optional | The name a key made now would get at the provider. A sign-in makes or reuses a key, so this is the name to look for on the provider's key page afterwards, not a promise of the exact minute. Absent for a provider whose key has no name of its own. |
+| `deleteUrl` | `string`, optional | The provider's own page that lists and deletes its API keys, for a person who wants the key gone. Absent when none is known. |
+| `rights` | `Array<"transfer" \| "billing" \| "account">` | What the key can do beyond the domain's DNS records. Empty for a key that reaches DNS only. |
+| `endsInDays` | `number \| null` | Days until the key stops working, or `null` for no end date. |
+
+`name` and `deleteUrl` are left off the object, not set to `undefined`, when the control plane sends
+none, so test them with `key.deleteUrl !== undefined` or `"deleteUrl" in key`.
+
+### An end user's saved access
+
+`rails.savedAccess.accounts` lists the provider keys already kept that may act for the domain, best
+first. An API key gets the workspace's keys. A widget token gets none, except an end user's: minted
+with that end user's `end_user_ref` and bound to the domain (`POST /v1/tokens` with `domain` and
+`end_user_ref`), it gets that end user's own keys, and only theirs, when the application allows it
+(its `end_user_saved_access` setting). Each of those entries has `ownerKind: "end_user"`, the neutral
+label `<Provider> key`, no `keyName` or `applicationId`, and `fromDomain`: the newest other domain of
+that end user the key already serves. `fromDomain` is absent when there is none, and on every
+workspace key. Any other widget token, or an end user's token for which a condition fails, gets an
+empty list and the other rails as they were, so the user simply signs in.
+
+```ts
+const { rails } = await customdomain.checkDomain("shop.example.com", { token }); // minted with domain and end_user_ref
+for (const key of rails?.savedAccess?.accounts ?? []) {
+  if (key.ownerKind !== "end_user") continue;
+  showOffer(`Use your ${key.providerName} access` + (key.fromDomain ? ` from ${key.fromDomain}` : ""));
+}
+```
+
+The offer is read only: an end user's token cannot use the key through the API yet, so showing it
+is as far as `checkDomain` goes.
 
 ## Errors and retries
 

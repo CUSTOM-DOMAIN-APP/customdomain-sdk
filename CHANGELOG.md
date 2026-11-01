@@ -39,6 +39,31 @@ missing, the workflow falls back to notes generated from commits and pull reques
 ---
 
 ## [Unreleased]
+### Added
+
+- **`customdomain-js`**: `RailKey`, the lasting API key a secure sign-in makes (`rails.cloudBrowser.key`
+  on `checkDomain`), gains two optional fields. `name` is the name a key made now would get at the
+  provider, the one to look for on the provider's key page afterwards (a sign-in makes or reuses a key,
+  so it is not a promise of the exact minute). `deleteUrl`, mapped from the wire's `delete_url`, is the
+  provider's own page that lists and deletes its API keys. Each is left off the object, not set to
+  `undefined`, when the control plane sends none or sends something that is not a non-empty string, so
+  a key from a control plane that predates them is exactly what it was.
+- **`customdomain-js`**: `SavedAccess` gains the optional `fromDomain`, mapped from `from_domain`: on an
+  end user's own kept key, the newest other domain of that end user the key already serves, for a line
+  such as "Use your Namecheap access from shop.example.com". It is absent when there is none and on
+  every workspace key, and, like `name` and `deleteUrl`, when the control plane sends null, an empty
+  string or something that is not a string.
+- **`customdomain-js`**: the docs of `SavedAccessRail.accounts` and `rails.savedAccess` now say what an
+  end user's widget token gets. A widget token used to read as "empty"; one minted with the end user's
+  `end_user_ref` and bound to the domain gets that end user's own keys (`ownerKind: "end_user"`, the
+  neutral label `<Provider> key`, no `keyName` or `applicationId`) when the application allows it, and
+  only theirs. The offer is read only: an end user's token cannot use the key through the API yet.
+- **`@customdomain/react`**: no code change. It already re-exports `RailKey`, `SavedAccess` and
+  `SavedAccessRail`, so the new fields reach React code with the SDK; its README lists them, and
+  compile time asserts in `packages/react/src/sdk-parity.assert.ts` pin the three to the SDK's own
+  types, with the new fields optional.
+- **Repository**: runtime tests in `packages/sdk/test/sdk.test.mjs` that `checkDomain` maps `name`,
+  `deleteUrl` and `fromDomain`, and leaves each off when it is absent, null, empty or not a string.
 
 ## [0.5.8] (2026-10-31)
 

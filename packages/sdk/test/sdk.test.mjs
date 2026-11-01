@@ -239,6 +239,127 @@ test("checkDomain leaves the newer rail fields absent when the control plane doe
   assert.equal(r.recommendedRail, "oauth");
 });
 
+// The kept key and an end user's saved access: what checkDomain maps for a secure sign-in's key
+// (its name and the provider's delete page) and for an end user's own kept key (fromDomain).
+
+/** A domains:check answer with the given `cloud_browser` rail and `saved_access` block, as the control plane sends it. */
+function stubCheck({ cloud_browser, saved_access } = {}) {
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      domain: "shop.acme.com", provider: "namecheap", setup_type: "automatic", record_conflicts: [],
+      rails: {
+        oauth: { available: false, reason: "provider_has_no_oauth" },
+        domain_connect: { available: false, reason: "provider_has_no_domain_connect" },
+        api_key: { available: true },
+        manual: { available: true },
+        ...(cloud_browser ? { cloud_browser } : {}),
+        ...(saved_access ? { saved_access } : {}),
+      },
+    }),
+  });
+  return new CustomDomain({ apiBase: "https://api.test" }).checkDomain("shop.acme.com", { token: "tok" });
+}
+
+test("checkDomain maps the kept key's name and the provider's delete page to name and deleteUrl", async () => {
+  const r = await stubCheck({
+    cloud_browser: {
+      available: true,
+      key: { name: "CustomDomain Acme 2026-10-21 1528", delete_url: "https://dash.provider.example/account/api-keys", rights: ["transfer", "billing"], ends_in_days: 90 },
+    },
+  });
+  assert.deepEqual(r.rails.cloudBrowser, {
+    available: true,
+    key: {
+      name: "CustomDomain Acme 2026-10-21 1528",
+      deleteUrl: "https://dash.provider.example/account/api-keys",
+      rights: ["transfer", "billing"],
+      endsInDays: 90,
+    },
+  });
+});
+
+test("checkDomain leaves name and deleteUrl off a key that has neither, or has one of them, or sends them empty", async () => {
+  const keyOf = async (key) => (await stubCheck({ cloud_browser: { available: true, key } })).rails.cloudBrowser.key;
+
+  // A provider whose key has no name of its own and no known delete page (the control plane omits both).
+  const bare = await keyOf({ rights: [], ends_in_days: null });
+  assert.deepEqual(bare, { rights: [], endsInDays: null });
+  assert.equal("name" in bare, false, "the key carries a name key with nothing in it");
+  assert.equal("deleteUrl" in bare, false, "the key carries a deleteUrl key with nothing in it");
+
+  // One without the other.
+  const named = await keyOf({ name: "CustomDomain Acme", rights: [], ends_in_days: 30 });
+  assert.deepEqual(named, { name: "CustomDomain Acme", rights: [], endsInDays: 30 });
+  assert.equal("deleteUrl" in named, false);
+  const linked = await keyOf({ delete_url: "https://keys.example.net/", rights: [], ends_in_days: null });
+  assert.deepEqual(linked, { deleteUrl: "https://keys.example.net/", rights: [], endsInDays: null });
+  assert.equal("name" in linked, false);
+
+  // Null, an empty string or a value that is not a string is no name and no page.
+  for (const junk of [null, "", 7, {}, ["https://keys.example.net/"]]) {
+    const k = await keyOf({ name: junk, delete_url: junk, rights: [], ends_in_days: null });
+    assert.deepEqual(k, { rights: [], endsInDays: null }, JSON.stringify(junk));
+    assert.equal("name" in k || "deleteUrl" in k, false, JSON.stringify(junk));
+  }
+});
+
+test("checkDomain does not leave the key's snake_case delete_url behind", async () => {
+  const key = (await stubCheck({ cloud_browser: { available: true, key: { delete_url: "https://keys.example.net/", rights: [], ends_in_days: null } } })).rails.cloudBrowser.key;
+  assert.equal("delete_url" in key, false);
+  assert.equal("ends_in_days" in key, false);
+});
+
+test("checkDomain maps an end user's own kept key with fromDomain, and leaves it off a workspace key", async () => {
+  const endUserKey = {
+    account_id: "pa_eu", provider: "namecheap", provider_name: "Namecheap", label: "Namecheap key", how: "secure_sign_in",
+    owner_kind: "end_user", scope: "selected", zone: "acme.com", ready: false, status: "active",
+    from_domain: "shop.example.com", key_expires_at: "2027-01-01T00:00:00Z",
+  };
+  const workspaceKey = {
+    account_id: "pa_ws", provider: "namecheap", provider_name: "Namecheap", label: "Namecheap (ops)", how: "api_key",
+    owner_kind: "workspace", scope: "all", zone: "acme.com", ready: true, status: "active", key_name: "customdomain",
+  };
+  const r = await stubCheck({ saved_access: { available: true, accounts: [endUserKey, workspaceKey] } });
+  assert.deepEqual(r.rails.savedAccess.accounts[0], {
+    accountId: "pa_eu", provider: "namecheap", providerName: "Namecheap", label: "Namecheap key", how: "secure_sign_in",
+    ownerKind: "end_user", scope: "selected", zone: "acme.com", ready: false, status: "active",
+    keyExpiresAt: "2027-01-01T00:00:00Z", fromDomain: "shop.example.com",
+  });
+  const ws = r.rails.savedAccess.accounts[1];
+  assert.equal(ws.ownerKind, "workspace");
+  assert.equal("fromDomain" in ws, false, "a workspace key carries a fromDomain key with nothing in it");
+  assert.equal("from_domain" in r.rails.savedAccess.accounts[0], false);
+});
+
+test("checkDomain leaves fromDomain off an end user's key that serves no other domain yet (null or absent)", async () => {
+  const base = {
+    account_id: "pa_eu", provider: "namecheap", provider_name: "Namecheap", label: "Namecheap key", how: "secure_sign_in",
+    owner_kind: "end_user", scope: "selected", zone: "acme.com", ready: true, status: "active",
+  };
+  const r = await stubCheck({ saved_access: { available: true, accounts: [base, { ...base, account_id: "pa_eu2", from_domain: null }] } });
+  for (const a of r.rails.savedAccess.accounts) {
+    assert.equal(a.ownerKind, "end_user");
+    assert.equal("fromDomain" in a, false);
+  }
+});
+
+test("checkDomain leaves fromDomain off when it is an empty string or not a string, and keeps a real one", async () => {
+  const base = {
+    account_id: "pa_eu", provider: "namecheap", provider_name: "Namecheap", label: "Namecheap key", how: "secure_sign_in",
+    owner_kind: "end_user", scope: "selected", zone: "acme.com", ready: true, status: "active",
+  };
+  for (const junk of ["", 7, 0, true, false, {}, ["shop.example.com"]]) {
+    const r = await stubCheck({ saved_access: { available: true, accounts: [{ ...base, from_domain: junk }] } });
+    const a = r.rails.savedAccess.accounts[0];
+    assert.equal("fromDomain" in a, false, `fromDomain was set from ${JSON.stringify(junk)}`);
+    assert.equal(a.accountId, "pa_eu");
+  }
+  const kept = await stubCheck({ saved_access: { available: true, accounts: [{ ...base, from_domain: "shop.example.com" }] } });
+  assert.equal(kept.rails.savedAccess.accounts[0].fromDomain, "shop.example.com");
+});
+
 // loadSharedFlow() frames a link and then hands the integrator's token to that frame, so the link
 // must name the widget's own origin. The tenant hand-off page reads it from its query string
 // (`?link=`), which anyone can write.

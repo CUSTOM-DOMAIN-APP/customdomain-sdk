@@ -23,7 +23,10 @@ verification and ACME certificate issuance happen server side.
   end user typed once the widget sends one, and `wwwRedirect` for root domains), and the window
   events `customdomain:success`, `customdomain:close`, `customdomain:step`, `customdomain:error`,
   `customdomain:fallback`, `customdomain:purchase`, `customdomain:shared`,
-  `customdomain:request-close`, `customdomain:doc-click`. Includes a `window.entri` compatibility
+  `customdomain:request-close`, `customdomain:doc-click`. The `checkDomain` answer carries the key a
+  secure sign-in makes (`rails.cloudBrowser.key`: `name`, `deleteUrl`, `rights`, `endsInDays`) and the
+  kept keys that may act for the domain (`rails.savedAccess.accounts`), which for an end user's widget
+  token are that end user's own, each with `fromDomain`. Includes a `window.entri` compatibility
   shim for drop-in migration.
 - [@customdomain/react README](packages/react/README.md): the `useCustomdomain()` hook and
   `<CustomdomainConnect>` component, the callback-prop-to-window-event mapping, and selling

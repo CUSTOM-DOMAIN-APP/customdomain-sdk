@@ -120,8 +120,9 @@ Every other prop is passed straight to the SDK's `OpenConfig`, including `domain
 Every public type is re-exported from `customdomain-js`, so your editor autocompletes every option:
 `OpenConfig`, `TokenRequest`, `WhiteLabel`, `DNSRecord`, `DNSRecordType`, `SetupType`, `SuccessResult`, `StepDetail`,
 `CloseDetail`, `FallbackDetail`, `PurchaseInitiated`, `RemovedResult`, `CheckDomainResult`, `RailInfo`,
-`IntegrationWarning`, `ManagedDnsAvailability` and `CheckRecordsResult`, plus the `CustomDomain` class
-and `CustomDomainError`.
+`RailKey` (with the key's `name` and `deleteUrl`), `DnsHostingVerdict`, `SavedAccess` (with an end user's
+`fromDomain`), `SavedAccessRail`, `AlsoProvider`, `IntegrationWarning`, `ManagedDnsAvailability` and
+`CheckRecordsResult`, plus the `CustomDomain` class and `CustomDomainError`.
 
 ## Selling domains
 

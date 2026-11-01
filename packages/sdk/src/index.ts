@@ -439,9 +439,11 @@ export interface CheckDomainResult {
      */
     nameservers?: DnsHostingVerdict;
     /**
-     * The provider keys the workspace already keeps that may act for this
-     * domain. Only an API key caller gets any; a widget token, the one a
-     * browser holds, gets `available: false` and no accounts.
+     * The provider keys already kept that may act for this domain, for the
+     * caller. An API key gets the workspace's keys; a widget token gets none,
+     * except an end user's token, which gets that end user's own keys when the
+     * application allows it (see `SavedAccessRail.accounts`). Absent when the
+     * caller has no such key.
      */
     savedAccess?: SavedAccessRail;
   };
@@ -519,6 +521,17 @@ export interface RailInfo {
 
 /** The API key a secure sign-in makes, on `RailInfo.key`. */
 export interface RailKey {
+  /**
+   * The name a key made now would get at the provider. A sign-in makes or reuses a key, so this is the
+   * name to look for on the provider's key page afterwards, not a promise of the exact minute it
+   * carries. Absent for a provider whose key has no name of its own.
+   */
+  name?: string;
+  /**
+   * The provider's own page that lists and deletes its API keys, for a person who wants the key gone
+   * (most providers offer no way to delete one from outside). Absent when none is known.
+   */
+  deleteUrl?: string;
   /** What the key can do beyond DNS: empty when it is DNS only. */
   rights: Array<"transfer" | "billing" | "account">;
   /** Days until the key stops working, or `null` for no end date. */
@@ -546,6 +559,7 @@ export interface SavedAccess {
   label: string;
   /** How the key came: a person pasted it, or the agent made it at a secure sign-in. */
   how: "api_key" | "secure_sign_in";
+  /** `end_user`: the end user's own key, which only an end user's widget token is offered (see `SavedAccessRail.accounts`). */
   ownerKind: "workspace" | "end_user";
   scope: "all" | "selected";
   /** The domain's zone at the provider. */
@@ -558,12 +572,27 @@ export interface SavedAccess {
   keyName?: string;
   keyExpiresAt?: string;
   lastUsedAt?: string;
+  /**
+   * Only on an end user's own key: the newest domain of that end user the key already serves (not the
+   * domain asked about), for a line such as "Use your Namecheap access from shop.example.com". Absent
+   * when there is none, and on every workspace key.
+   */
+  fromDomain?: string;
 }
 
 /** The kept keys that may act for the domain, on `rails.savedAccess`. */
 export interface SavedAccessRail {
   available: boolean;
-  /** Best first. Empty for a widget token. */
+  /**
+   * Best first. An API key gets the workspace's keys. A widget token gets none, except an end user's:
+   * minted with the end user's `end_user_ref` and bound to this domain, it gets that end user's own
+   * keys (`ownerKind: "end_user"`), and only theirs, when the application allows it (its
+   * `end_user_saved_access` setting). Such an entry has the neutral label `<Provider> key`, no
+   * `keyName` or `applicationId`, and a `fromDomain` when the key already serves another of their
+   * domains. The offer is read only: an end user's token cannot use the key through the API yet. Any
+   * other widget token, and an end user's token for which any condition fails, gets an empty list and
+   * the other rails as they were.
+   */
   accounts: SavedAccess[];
 }
 
@@ -1188,15 +1217,35 @@ function relativeHost(host: string, domain: string): string {
   return h;
 }
 
+/** The value when it is a non-empty string, else undefined: what a text field of an answer is worth keeping. */
+function text(v: unknown): string | undefined {
+  return typeof v === "string" && v !== "" ? v : undefined;
+}
+
 // One rail's wire shape is the camelCase view already, except the key a secure
-// sign-in makes, whose `ends_in_days` becomes `endsInDays`.
+// sign-in makes, whose `ends_in_days` becomes `endsInDays` and `delete_url`
+// becomes `deleteUrl`. `name` and `deleteUrl` are left off the object, not set to
+// undefined, when the control plane sends none (or sends something that is not a
+// non-empty string), so a host that spreads or compares the key sees what was sent.
 function railInfo(x: any): RailInfo {
   if (!x || !x.key) return x;
   const { key, ...rest } = x;
-  return { ...rest, key: { rights: key.rights ?? [], endsInDays: key.ends_in_days ?? null } };
+  const name = text(key.name);
+  const deleteUrl = text(key.delete_url);
+  return {
+    ...rest,
+    key: {
+      ...(name !== undefined ? { name } : {}),
+      ...(deleteUrl !== undefined ? { deleteUrl } : {}),
+      rights: key.rights ?? [],
+      endsInDays: key.ends_in_days ?? null,
+    },
+  };
 }
 
 function savedAccess(a: any): SavedAccess {
+  // `fromDomain` is left off, like the key's `name` and `deleteUrl`, when it is absent, null, empty or not a string.
+  const fromDomain = text(a.from_domain);
   return {
     accountId: a.account_id,
     provider: a.provider,
@@ -1212,6 +1261,7 @@ function savedAccess(a: any): SavedAccess {
     ...(a.key_name != null ? { keyName: a.key_name } : {}),
     ...(a.key_expires_at != null ? { keyExpiresAt: a.key_expires_at } : {}),
     ...(a.last_used_at != null ? { lastUsedAt: a.last_used_at } : {}),
+    ...(fromDomain !== undefined ? { fromDomain } : {}),
   };
 }
 
