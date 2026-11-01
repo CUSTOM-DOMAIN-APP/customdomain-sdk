@@ -1217,6 +1217,11 @@ function relativeHost(host: string, domain: string): string {
   return h;
 }
 
+/** The value when it is a non-empty string, else undefined: what a text field of an answer is worth keeping. */
+function text(v: unknown): string | undefined {
+  return typeof v === "string" && v !== "" ? v : undefined;
+}
+
 // One rail's wire shape is the camelCase view already, except the key a secure
 // sign-in makes, whose `ends_in_days` becomes `endsInDays` and `delete_url`
 // becomes `deleteUrl`. `name` and `deleteUrl` are left off the object, not set to
@@ -1225,7 +1230,6 @@ function relativeHost(host: string, domain: string): string {
 function railInfo(x: any): RailInfo {
   if (!x || !x.key) return x;
   const { key, ...rest } = x;
-  const text = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
   const name = text(key.name);
   const deleteUrl = text(key.delete_url);
   return {
@@ -1240,6 +1244,8 @@ function railInfo(x: any): RailInfo {
 }
 
 function savedAccess(a: any): SavedAccess {
+  // `fromDomain` is left off, like the key's `name` and `deleteUrl`, when it is absent, null, empty or not a string.
+  const fromDomain = text(a.from_domain);
   return {
     accountId: a.account_id,
     provider: a.provider,
@@ -1255,7 +1261,7 @@ function savedAccess(a: any): SavedAccess {
     ...(a.key_name != null ? { keyName: a.key_name } : {}),
     ...(a.key_expires_at != null ? { keyExpiresAt: a.key_expires_at } : {}),
     ...(a.last_used_at != null ? { lastUsedAt: a.last_used_at } : {}),
-    ...(a.from_domain != null ? { fromDomain: a.from_domain } : {}),
+    ...(fromDomain !== undefined ? { fromDomain } : {}),
   };
 }
 

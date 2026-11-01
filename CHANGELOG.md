@@ -52,7 +52,8 @@ missing, the workflow falls back to notes generated from commits and pull reques
 - **`customdomain-js`**: `SavedAccess` gains the optional `fromDomain`, mapped from `from_domain`: on an
   end user's own kept key, the newest other domain of that end user the key already serves, for a line
   such as "Use your Namecheap access from shop.example.com". It is absent when there is none and on
-  every workspace key.
+  every workspace key, and, like `name` and `deleteUrl`, when the control plane sends null, an empty
+  string or something that is not a string.
 - **`customdomain-js`**: the docs of `SavedAccessRail.accounts` and `rails.savedAccess` now say what an
   end user's widget token gets. A widget token used to read as "empty"; one minted with the end user's
   `end_user_ref` and bound to the domain gets that end user's own keys (`ownerKind: "end_user"`, the

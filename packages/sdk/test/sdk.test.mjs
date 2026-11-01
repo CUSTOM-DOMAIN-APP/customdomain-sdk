@@ -345,6 +345,21 @@ test("checkDomain leaves fromDomain off an end user's key that serves no other d
   }
 });
 
+test("checkDomain leaves fromDomain off when it is an empty string or not a string, and keeps a real one", async () => {
+  const base = {
+    account_id: "pa_eu", provider: "namecheap", provider_name: "Namecheap", label: "Namecheap key", how: "secure_sign_in",
+    owner_kind: "end_user", scope: "selected", zone: "acme.com", ready: true, status: "active",
+  };
+  for (const junk of ["", 7, 0, true, false, {}, ["shop.example.com"]]) {
+    const r = await stubCheck({ saved_access: { available: true, accounts: [{ ...base, from_domain: junk }] } });
+    const a = r.rails.savedAccess.accounts[0];
+    assert.equal("fromDomain" in a, false, `fromDomain was set from ${JSON.stringify(junk)}`);
+    assert.equal(a.accountId, "pa_eu");
+  }
+  const kept = await stubCheck({ saved_access: { available: true, accounts: [{ ...base, from_domain: "shop.example.com" }] } });
+  assert.equal(kept.rails.savedAccess.accounts[0].fromDomain, "shop.example.com");
+});
+
 // loadSharedFlow() frames a link and then hands the integrator's token to that frame, so the link
 // must name the widget's own origin. The tenant hand-off page reads it from its query string
 // (`?link=`), which anyone can write.
