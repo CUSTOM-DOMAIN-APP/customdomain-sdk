@@ -40,6 +40,60 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
+### Added
+
+- **`customdomain-js`**: the nameserver methods. They drive a domain's nameserver move with the end
+  user's widget token, over the routes the hosted widget itself calls:
+  - `getNameserverMove(connectionId, { token, apiBase? })` reads
+    `GET /v1/connections/{id}/nameservers` and resolves `null` when no move was started (a 404).
+  - `startNameserverMove(connectionId, consent, { token, apiBase?, copyReviewed? })` posts to
+    `.../nameservers:migrate`. `copyReviewed: true` confirms the copy of a move in `needs_review`,
+    as the widget does.
+  - `rollbackNameservers(connectionId, target?, { token, apiBase? })` posts to
+    `.../nameservers:rollback`. It takes the target before the config, or no target:
+    `rollbackNameservers(id, { token })` and `rollbackNameservers(id, "previous", { token })`.
+
+  They resolve a `NameserverMove`, the API's answer mapped to camelCase: a field the API did not
+  send is absent, and the lists, counts and flags read as empty, zero and false. A refusal rejects
+  with a `CustomDomainError` carrying the API's `code`, `status` and `details`.
+- **`customdomain-js`**: the consent of `startNameserverMove`, `{ id, version }`, is required by the
+  type and checked when called. A missing one, or one whose id or version is blank or not a string,
+  rejects with a `CustomDomainError` of code `InvalidConsentError` before anything is sent. They are
+  the id and version of the consent text the end user was shown. The API accepts only a text the
+  hosted widget shows (today id `nsm-consent`, versions 1 to 3), and the wording is published in
+  "What your users see" of the nameserver migration guide at docs.customdomain.ai.
+- **`customdomain-js`**: `NameserverMoveErrorCode`, the codes a widget token can get from the three
+  methods: `invalid_request`, `unauthorized`, `connections_unavailable`, `token_wrong_end_user`,
+  `forbidden`, `workspace_suspended`, `not_found`, `conflict`, `old_dns_gone`, `changed_elsewhere`,
+  `nameserver_migration_unavailable`, `registrar_locks_nameservers`, `zone_host_unsupported`,
+  `registrar_refused`, `service_unavailable` and `registrar_unconfirmed`. The README says which
+  calls each applies to. The one to expect from an end user's token is `token_wrong_end_user` (403):
+  a connection, or an open move, that is not that end user's. Mint the token with the domain's
+  `end_user_ref`. The `token_wrong_end_user` answers need the CustomDomain API release of November
+  2026; an API from before it answers those calls without them.
+- **`customdomain-js`**: `getConnection(connectionId, { token, apiBase? })` and the connection's
+  `dns_hosting` field. It reads `GET /v1/connections/{id}` with a widget token and resolves a
+  `Connection` view: `id`, `applicationId`, `domain`, `host?`, `providerId?`, `setupType`, `status`,
+  `createdAt` and `dnsHosting?`. Only those fields come through, so nothing else the answer carries
+  (records, routing) reaches the caller. `dnsHosting`, a `ConnectionDnsHosting`, says who runs the
+  domain's DNS: `state` is `none`, `moving`, `hosted` or `failed`, with `by?` (`customdomain`,
+  `dns_host` or `custom`), `provider?`, `zone?` and `since?`. It is left off when the control plane
+  sends none. The SDK had no way to read a connection before, so the field needed one.
+- **`customdomain-js`**: the exported types `NameserverMove`, `NameserverMoveState`,
+  `NameserverRegistrar`, `NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent`,
+  `ConnectionCallConfig`, `Connection` and `ConnectionDnsHosting`.
+- **`@customdomain/react`**: re-exports those types. The hook does not wrap the methods (a call
+  needs a token, not a modal); a React app reaches them through the re-exported `CustomDomain`
+  class, and the README says so.
+- **Repository**: runtime tests of the three methods and of `getConnection` in
+  `packages/sdk/test/sdk.test.mjs`: paths and methods, headers, bodies, the field mapping, absent
+  and null fields, the escaped connection id, `apiBase`, consent required and refusals. Two more
+  tests check that the README's table of codes is the `NameserverMoveErrorCode` union and that the
+  consent docs point at the published text. Compile time asserts pin the consent as required and
+  the union (`packages/sdk/src/nameserver-methods.assert.ts`), `dnsHosting` as optional
+  (`packages/sdk/src/connection-read.assert.ts`) and React's re-exports to the SDK's own types
+  (`packages/react/src/nameserver-parity.assert.ts` and `connection-parity.assert.ts`).
+
 ## [0.5.8] (2026-10-31)
 
 `getToken` now receives a `TokenRequest` when the widget sends one: the domain the end user typed,
