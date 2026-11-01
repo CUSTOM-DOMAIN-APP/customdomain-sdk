@@ -7,6 +7,7 @@
 // origin, exactly as the SDK's origin-checked listener expects.
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { CustomDomain } from "../dist/index.js";
 
 const WIDGET = "https://widget.test";
@@ -1019,5 +1020,67 @@ test("getConnection escapes the id, honours cfg.apiBase and surfaces refusals as
       (err) => err.name === "CustomDomainError" && err.code === code && err.status === status && err.message === `title ${code}` && err.details === `details ${code}`,
       `${status} ${code}`
     );
+  }
+});
+
+// The docs of the nameserver refusals and of the consent are checked against the code, so they cannot drift:
+// the README's table of codes is the `NameserverMoveErrorCode` union, the JSDoc of the union lists the same
+// codes, and the consent docs point at the page that publishes the consent text instead of hard-coding a version.
+
+const sdkFile = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), "utf8");
+const CONSENT_DOCS_URL = "https://docs.customdomain.ai/docs/guides/nameserver-migration#what-your-end-user-sees";
+
+/** The members of `NameserverMoveErrorCode` in src/index.ts, sorted. */
+function unionCodes() {
+  const source = sdkFile("src/index.ts");
+  const union = source.match(/export type NameserverMoveErrorCode =((?:\n {2}\| "[a-z_]+")+);/);
+  assert.ok(union, "NameserverMoveErrorCode is not where this test looks for it");
+  return [...union[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
+}
+
+test("the README's table of refusal codes is exactly the NameserverMoveErrorCode union", () => {
+  const readme = sdkFile("README.md");
+  const from = readme.indexOf("**Refusals.**");
+  assert.ok(from >= 0, "the README has no Refusals paragraph");
+  // The table is the first run of lines that start with a pipe after the paragraph.
+  const lines = readme.slice(from).split("\n");
+  const first = lines.findIndex((line) => line.startsWith("|"));
+  assert.ok(first >= 0, "the Refusals paragraph has no table");
+  let last = first;
+  while (last < lines.length && lines[last].startsWith("|")) last += 1;
+  const rows = lines.slice(first, last).filter((line) => line.startsWith("| `"));
+  const codes = rows.flatMap((row) => [...row.split("|")[1].matchAll(/`([a-z_]+)`/g)].map((m) => m[1])).sort();
+  assert.deepEqual(codes, unionCodes());
+  // Every row names the HTTP status and the calls it applies to.
+  for (const row of rows) {
+    const cells = row.split("|").map((c) => c.trim());
+    assert.match(cells[2], /^[1-5]\d\d$/, row);
+    assert.match(cells[3], /^(all|(start|rollback)(, (start|rollback))*)$/, row);
+  }
+});
+
+test("the JSDoc of NameserverMoveErrorCode lists exactly the union's codes", () => {
+  const source = sdkFile("src/index.ts");
+  const doc = source.slice(0, source.indexOf("export type NameserverMoveErrorCode ="));
+  const jsdoc = doc.slice(doc.lastIndexOf("/**"));
+  const listed = jsdoc
+    .split("\n")
+    .filter((line) => /^ \* - `/.test(line))
+    .flatMap((line) => [...line.replace(/^ \* - /, "").split(" (")[0].matchAll(/`([a-z_]+)`/g)].map((m) => m[1]))
+    .sort();
+  assert.deepEqual(listed, unionCodes());
+});
+
+test("the consent docs point at the published consent text and do not hard-code a version", () => {
+  const sdkReadme = sdkFile("README.md");
+  const reactReadme = sdkFile("../react/README.md");
+  const source = sdkFile("src/index.ts");
+  assert.ok(sdkReadme.includes(CONSENT_DOCS_URL), "the SDK README does not link the page that publishes the consent text");
+  assert.ok(reactReadme.includes(CONSENT_DOCS_URL), "the React README does not link the page that publishes the consent text");
+  const consentDoc = source.slice(source.lastIndexOf("/**", source.indexOf("export interface NameserverConsent")), source.indexOf("export interface NameserverConsent"));
+  assert.ok(consentDoc.includes(CONSENT_DOCS_URL), "the JSDoc of NameserverConsent does not name the page that publishes the consent text");
+  // The examples send the version of the text that was shown, not a number that is true only today.
+  for (const [name, text] of [["SDK README", sdkReadme], ["React README", reactReadme]]) {
+    assert.equal(/version: "\d+"/.test(text), false, `${name} hard-codes a consent version in an example`);
   }
 });

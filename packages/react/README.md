@@ -200,7 +200,10 @@ of the SDK instance, not of the hook: a call needs the end user's widget token, 
 them through the `CustomDomain` class this package re-exports, and import their types
 (`NameserverMove`, `NameserverMoveState`, `NameserverConsent`, `NameserverRollbackTarget`,
 `NameserverMoveErrorCode`, `Connection`, `ConnectionDnsHosting` and the rest) from here.
-`startNameserverMove` requires the end user's consent. Everything about them is in the
+`startNameserverMove` requires the end user's consent: the id and version of the consent text your page
+showed them, which is published in
+[What your users see](https://docs.customdomain.ai/docs/guides/nameserver-migration#what-your-end-user-sees).
+Everything about the methods is in the
 [SDK README](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/blob/main/packages/sdk/README.md#nameserver-moves).
 
 ```tsx
@@ -208,9 +211,9 @@ import { CustomDomain, type NameserverMove } from "@customdomain/react";
 
 const sdk = new CustomDomain();
 
-async function startMove(connectionId: string, token: string): Promise<NameserverMove> {
-  // Only after your page showed the end user the words of this consent text.
-  return sdk.startNameserverMove(connectionId, { id: "nsm-consent", version: "3" }, { token });
+async function startMove(connectionId: string, token: string, shownVersion: string): Promise<NameserverMove> {
+  // shownVersion is the version of the consent text your page showed the end user.
+  return sdk.startNameserverMove(connectionId, { id: "nsm-consent", version: shownVersion }, { token });
 }
 ```
 

@@ -68,7 +68,30 @@ const _moveBackFieldsUseThem: Exact<NonNullable<NameserverMove["rollbackDefault"
 const _moveBackListUsesThem: Exact<NameserverMove["rollbackTargets"], NameserverRollbackTarget[]> = true;
 // The states a poll ends on are members of the state union.
 const _endStates: "active" | "failed" | "rolled_back" extends NameserverMoveState ? true : never = true;
-// The refusal an end user can meet for another end user's connection is a named code.
+// The codes the three methods can reject with for a widget token are exactly these: the ones the routes
+// answer, not the ones only an API key, a registrar key or an agent token reaches (`dns_host_not_configured`,
+// `nameserver_agent_unavailable`, `ns_not_offered` and the like). A code added or dropped without the docs
+// (the JSDoc of the type and the README table, which a test compares) fails here.
+const _errorCodesAreTheRoutes: Exact<
+  NameserverMoveErrorCode,
+  | "invalid_request"
+  | "unauthorized"
+  | "connections_unavailable"
+  | "token_wrong_end_user"
+  | "forbidden"
+  | "workspace_suspended"
+  | "not_found"
+  | "conflict"
+  | "old_dns_gone"
+  | "changed_elsewhere"
+  | "nameserver_migration_unavailable"
+  | "registrar_locks_nameservers"
+  | "zone_host_unsupported"
+  | "registrar_refused"
+  | "service_unavailable"
+  | "registrar_unconfirmed"
+> = true;
+// The refusal an end user meets for another end user's connection, or for a move that is not theirs, is a named code.
 const _wrongEndUserIsTyped: "token_wrong_end_user" extends NameserverMoveErrorCode ? true : never = true;
 // A move's registrar and next action may be null, which is a different answer from a missing field.
 const _registrarMayBeNull: null extends NameserverMove["registrar"] ? true : never = true;
@@ -82,6 +105,7 @@ void _moveBackFieldsUseThem;
 void _moveBackListUsesThem;
 void _endStates;
 void _wrongEndUserIsTyped;
+void _errorCodesAreTheRoutes;
 void _registrarMayBeNull;
 void _nextActionMayBeNull;
 void _oldDnsServesMayBeNull;

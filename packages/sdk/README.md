@@ -260,8 +260,8 @@ Each also takes `apiBase`, like `checkDomain`. `connectionId` is the id you kept
 (`jobId` of `customdomain:success`).
 
 ```ts
-// Only after your page showed the end user the words of the consent text you name here.
-const consent = { id: "nsm-consent", version: "3" };
+// The id and version of the consent text your page showed the end user (see "Consent is required").
+const consent = { id: "nsm-consent", version: shownVersion };
 
 let move = await customdomain.startNameserverMove(connectionId, consent, { token });
 while (!["active", "failed", "rolled_back"].includes(move.state)) {
@@ -269,26 +269,37 @@ while (!["active", "failed", "rolled_back"].includes(move.state)) {
   move = (await customdomain.getNameserverMove(connectionId, { token })) ?? move;
 }
 if (move.state === "failed" && move.canRollback) {
-  await customdomain.rollbackNameservers(connectionId, { token }); // or ("previous" | "registrar_default", { token })
+  // Or rollbackNameservers(connectionId, "previous" | "registrar_default", { token }).
+  await customdomain.rollbackNameservers(connectionId, { token });
 }
 ```
 
-**Consent is required.** `startNameserverMove` takes `{ id, version }`, the consent text the end user
-agreed to, and the move stores them with the time it was given, never the person's address. The type
-requires it, and the method checks it: a missing one, or one whose `id` or `version` is not a
-non-empty string, rejects with a `CustomDomainError` of code `InvalidConsentError` before anything is
-sent. The API accepts only a text the hosted widget shows and answers `400` for any other.
+**Consent is required.** `startNameserverMove` takes `{ id, version }`, the id and version of the
+consent text the end user agreed to. The move stores them with the time they agreed, never the
+person's address, so they must be those of the text your page actually showed. The type requires
+them, and the method checks them: a missing consent, or one whose `id` or `version` is blank or not a
+string, rejects with a `CustomDomainError` of code `InvalidConsentError` before anything is sent.
+The API accepts only a text the hosted widget shows, and answers `400` `invalid_request` for any
+other. Today that is id `nsm-consent`, versions `1` to `3`, and the hosted widget shows the newest.
+The wording, with the placeholders it fills (your application's name and the domain), and the
+versions are published in
+[What your users see](https://docs.customdomain.ai/docs/guides/nameserver-migration#what-your-end-user-sees).
+Show that text, and send the version of the one you showed.
 
 **Reading a move.** `state` moves through `pending`, `copying`, `needs_review`, `needs_dnssec_off`,
 `waiting_ds`, `setting` and `propagating` (a move passes only the ones it needs) to `active`, and
-`failed` and `rolled_back` end it too. Poll while it is none of those three. `nextStep` is one sentence for the person, and `nextAction` is the
-one request that presses the move on, or `null` when nothing is waiting for a press: `retry` is
-`startNameserverMove` again, `rollback` is `rollbackNameservers`, and `sign_in` is the registrar
-sign-in the hosted widget runs, which has no method here. A move in `needs_review` has a copy of the
-domain's records that is not proven complete: show `copyWarnings`, and when the person has checked
-them call `startNameserverMove` again with `copyReviewed: true`. A widget token may send it only for
-a move already in `needs_review`. Every field is listed on the exported `NameserverMove` type; one
-the API did not send is absent, and the lists, counts and flags read as empty, zero and false.
+`failed` and `rolled_back` end it too. Poll while it is none of those three.
+
+- `nextStep` is one sentence for the person.
+- `nextAction` is the one request that presses the move on, or `null` when nothing is waiting for a
+  press: `retry` is `startNameserverMove` again, `rollback` is `rollbackNameservers`, and `sign_in` is
+  the registrar sign-in the hosted widget runs, which has no method here.
+- A move in `needs_review` has a copy of the domain's records that is not proven complete. Show
+  `copyWarnings`, and when the person has checked them call `startNameserverMove` again with
+  `copyReviewed: true`. A widget token may send it only for a move already in `needs_review`.
+
+Every field is listed on the exported `NameserverMove` type. One the API did not send is absent, and
+the lists, counts and flags read as empty, zero and false.
 
 **Rolling back.** `target` is `previous` (the nameservers the domain had; refused with
 `old_dns_gone` once they no longer answer for the zone) or `registrar_default` (the registrar's own
@@ -297,21 +308,31 @@ DNS). With none, the API picks: `previous` while the old nameservers still answe
 but may not send a registrar key.
 
 **Refusals.** Every call rejects with a `CustomDomainError` (`code`, `message`, `details?`,
-`status`) when the API refuses; see [Errors and retries](#errors-and-retries). The codes to expect
-are the `NameserverMoveErrorCode` type:
+`status`) when the API refuses; see [Errors and retries](#errors-and-retries). These are the codes a
+widget token can get, the `NameserverMoveErrorCode` type, with the calls each applies to (`details`
+says more for most of them):
 
-| Code | Status | Meaning |
-|---|---|---|
-| `token_wrong_end_user` | 403 | The token is not this connection's end user's: it was minted for another end user, or for none while the connection names one. An end user also gets it for a move that is not theirs to resume. Nothing was read or changed. Mint the token with this domain's `end_user_ref` and call again. |
-| `forbidden` | 403 | The application does not offer DNS hosting, or the token may not do this. |
-| `nameserver_migration_unavailable`, `registrar_locks_nameservers`, `nameserver_agent_unavailable` | 422 | This domain's nameservers cannot be moved this way; `details` says why. |
-| `old_dns_gone`, `changed_elsewhere` | 409 | A move back that would not work: the old nameservers no longer answer for the zone (choose `registrar_default`), or the registrar lists nameservers other than the move's, so a move back would overwrite someone else's change. |
-| `registrar_refused` | 502 | The registrar did not accept the old nameservers. Nothing was changed. |
-| `registrar_unconfirmed` | 504 | The registrar's answer was lost and could not be read back, so it is not known whether the move back happened. Nothing is recorded; try again. |
+| Code | Status | Calls | Meaning |
+|---|---|---|---|
+| `invalid_request` | 400 | start, rollback | Start: the consent names a text the hosted widget does not show, or its id or version is not valid. Rollback: a target other than the two. |
+| `unauthorized` | 401 | all | The token is missing, malformed, expired or not valid. Get a fresh one. |
+| `connections_unavailable` | 402 | start | An end user's token while the workspace is suspended. Nothing was started. The API words it neutrally on purpose: tell the person to try later or contact you. |
+| `token_wrong_end_user` | 403 | all | The connection, or the open move, is not this end user's: the token was minted for another end user, or for none while the connection names one, or the move names no connection of theirs. Nothing was read or changed. Mint the token with this domain's `end_user_ref` and call again. |
+| `forbidden` | 403 | all | The token is bound to a different domain than the connection's. Start: also the application does not offer DNS hosting. |
+| `workspace_suspended` | 403 | start | Only for a token a server mints (an app scoped one). An end user's token reads `connections_unavailable` for the same case. |
+| `not_found` | 404 | start, rollback | The connection does not exist or is another application's. Rollback: also no move was started. Start: also the application's DNS host account is gone. `getNameserverMove` reads any 404 as `null`. |
+| `conflict` | 409 | start, rollback | The nameservers are being moved for another account or application, the domain's zone is hosted for someone else, the domain already uses the new nameservers, the application's DNS host account no longer holds a usable key, or another change to the move is in progress (try again in a moment). Rollback: also nothing was changed at the registrar to move back, or the old nameservers are not known (choose `registrar_default`). |
+| `old_dns_gone` | 409 | rollback | The old nameservers no longer answer for the zone. Choose `registrar_default`. |
+| `changed_elsewhere` | 409 | rollback | The registrar lists other nameservers than the move's, so a move back would overwrite someone else's change. |
+| `nameserver_migration_unavailable`, `registrar_locks_nameservers`, `zone_host_unsupported` | 422 | start | This domain's nameservers cannot be moved this way, or the application's DNS host cannot create zones. |
+| `registrar_refused` | 502 | rollback | The registrar did not accept the old nameservers. Nothing was changed. |
+| `service_unavailable` | 503 | all | Nameserver moves are not available on this deployment. |
+| `registrar_unconfirmed` | 504 | rollback | The registrar's answer was lost and could not be read back, so it is not known whether the move back happened. Nothing is recorded; try again. |
 
-A start can also answer `409` (the domain already uses these nameservers, a move of it is held by
-another account or application, or another change to the move is in progress) and `400` (a consent
-the API does not accept); the code in each case is in the error. The exported types are `NameserverMove`, `NameserverMoveState`, `NameserverRegistrar`,
+The `token_wrong_end_user` answers come with the CustomDomain API release of November 2026. An API
+from before it answers those calls without them.
+
+The exported types are `NameserverMove`, `NameserverMoveState`, `NameserverRegistrar`,
 `NameserverNextAction`, `NameserverRollbackTarget`, `NameserverConsent`, `NameserverMoveErrorCode`
 and `ConnectionCallConfig`, and `@customdomain/react` re-exports them.
 
