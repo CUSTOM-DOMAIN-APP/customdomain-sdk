@@ -524,3 +524,19 @@ test("a token-expired message from another origin is ignored", async () => {
   assert.deepEqual(tokenAnswers(), []);
   sdk.close();
 });
+
+test("open({ askEndUserEmail: false }) hands false to the widget so it hides the email box", () => {
+  const sdk = new CustomDomain();
+  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET, askEndUserEmail: false });
+  const payload = initPayload();
+  assert.equal(payload.config.askEndUserEmail, false);
+  sdk.close();
+});
+
+test("open() without askEndUserEmail leaves it undefined: the application's setting decides", () => {
+  const sdk = new CustomDomain();
+  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET });
+  const payload = initPayload();
+  assert.equal(payload.config.askEndUserEmail, undefined);
+  sdk.close();
+});

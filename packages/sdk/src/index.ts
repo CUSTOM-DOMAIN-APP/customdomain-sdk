@@ -193,6 +193,11 @@ export interface OpenConfig {
   iframeSandbox?: string;
   /** Force the flow onto a subdomain (widget hides the apex option). */
   forceSubdomain?: boolean;
+  /**
+   * `false` hides the optional end user email field ("Get DNS updates by email")
+   * on the done screen. Omit it to let the application's setting decide.
+   */
+  askEndUserEmail?: boolean;
   /** Search mode for the purchase/buy screen (e.g. "standard" | "ai"). */
   searchType?: string;
   /**
@@ -1130,6 +1135,7 @@ function buildInitPayload(
       userId: config.userId,
       endUserRef: config.endUserRef,
       forceSubdomain: config.forceSubdomain,
+      askEndUserEmail: config.askEndUserEmail,
       searchType: config.searchType,
       managed: config.managed,
       wwwRedirect: config.wwwRedirect,

@@ -40,6 +40,30 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
+## [0.5.9] (2026-11-02)
+
+`open()` now passes the `askEndUserEmail` option to the widget. The widget already read it, and the
+docs already described it, but `buildInitPayload` built the widget's config from a fixed list that
+left it out, so `askEndUserEmail: false` never hid the "Get DNS updates by email" box.
+
+0.5.8 was never published to npm (the registry's latest is 0.5.7), so 0.5.9 is the first release
+that carries the 0.5.8 `TokenRequest` change as well. Read the 0.5.8 entry below for it.
+
+### Fixed
+
+- **`customdomain-js`**: `askEndUserEmail` is forwarded in the `customdomain:init` config.
+  `false` hides the optional end user email field on the done screen; leaving it out lets the
+  application's setting decide, as before.
+- **`@customdomain/react`**: no code change. `useCustomdomain()` and `<CustomdomainConnect>` take
+  the SDK's own `OpenConfig`, so the option now works there too. It depends on
+  `customdomain-js@0.5.9`.
+
+### Added
+
+- **`customdomain-js`**: `OpenConfig.askEndUserEmail?: boolean`.
+- **Repository**: runtime tests in `packages/sdk/test/sdk.test.mjs` that the init config carries
+  `askEndUserEmail: false` when passed and leaves it undefined when not.
+
 ## [0.5.8] (2026-10-31)
 
 `getToken` now receives a `TokenRequest` when the widget sends one: the domain the end user typed,
