@@ -12,7 +12,8 @@
  * guard, so importing this module on the server is a no-op.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { SetupState, SetupStore } from "customdomain-js/store";
 import {
   customdomain as sdkSingleton,
   type CustomDomain,
@@ -291,4 +292,15 @@ export function CustomdomainConnect({ open = true, ...options }: CustomdomainCon
   }, [open, ready, openModal, close]);
 
   return null;
+}
+
+export { createSetupStore } from "customdomain-js/store";
+export type { SetupPhase, SetupState, SetupStore } from "customdomain-js/store";
+
+/**
+ * Follows a setup store (customdomain-js/store, 0.6): re-renders on every widget event the store took in.
+ * `const store = useMemo(createSetupStore, [])`, then `customdomain.open(store.bind(config))`.
+ */
+export function useSetupState(store: SetupStore): SetupState {
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }

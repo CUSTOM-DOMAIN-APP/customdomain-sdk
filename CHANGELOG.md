@@ -40,6 +40,21 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
+## [0.6.0] (2026-11-12)
+
+### Added
+
+- `customdomain-js/store`: `createSetupStore()`, a framework-free state of one setup (`idle`, `open`, `success`,
+  `error`, `closed`, with the last step, result, error, fallback and removal), built from the widget's events.
+  `store.bind(config)` chains its callbacks before yours.
+- `customdomain-js/vue`: `useSetupState(store)`, a ref that follows the store (optional peer `vue >= 3.3`).
+- `customdomain-js/svelte`: `toReadable(store)`, a Svelte readable store. No dependency on svelte.
+- `customdomain-js/testing`: `simulateSetup(config, outcome, { domain })` plays a success, error, fallback or
+  cancel into an `OpenConfig`'s callbacks, in the widget's order, with statuses from the widget protocol.
+- `@customdomain/react`: `useSetupState(store)` and re-exports of `createSetupStore` and its types.
+- `protocol/protocol.json` in the `customdomain-js` package: a pinned copy of the widget's message protocol
+  (version 1). The tests hold the simulator to it.
+
 ## [0.5.9] (2026-11-02)
 
 `open()` now passes the `askEndUserEmail` option to the widget. The widget already read it, and the
