@@ -27,6 +27,7 @@
         "success": "true",
         "reconnected": "true? (setupType reconnect)",
         "alreadyConnected": "true? (the domain was already live)",
+        "state": "string? (integrator OAuth: the state of the pushed request the widget ran for)",
         "pendingDomains": "string[]?",
         "processedDomains": "string[]?"
       }
@@ -67,7 +68,7 @@
   "inbound": {
     "customdomain:init": {
       "from": "the embedding page, once per mount; pins the host origin",
-      "payload": { "token": "string", "domain": "string?", "dnsRecords": "array?", "theme": "object? (legacy)", "config": "object? (the widget options, see the SDK reference)" }
+      "payload": { "token": "string (empty with a pushed request)", "clientId": "string? (integrator OAuth: the application id)", "requestUri": "string? (integrator OAuth: a pushed request, redeemed once instead of the token)", "domain": "string?", "dnsRecords": "array?", "theme": "object? (legacy)", "config": "object? (the widget options, see the SDK reference)" }
     },
     "customdomain:token": { "from": "the pinned host, answering a token refresh", "payload": { "token": "string|null" } },
     "customdomain:oauth": {
