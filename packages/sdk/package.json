@@ -1,6 +1,6 @@
 {
   "name": "customdomain-js",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "CustomDomain\u2122 SDK: let your users connect their own domain in one click, with DNS records written, ownership verified and TLS issued for them.",
   "license": "Apache-2.0",
   "repository": {
@@ -31,6 +31,46 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./store": {
+      "import": {
+        "types": "./dist/store.d.ts",
+        "default": "./dist/store.js"
+      },
+      "require": {
+        "types": "./dist/store.d.cts",
+        "default": "./dist/store.cjs"
+      }
+    },
+    "./svelte": {
+      "import": {
+        "types": "./dist/svelte.d.ts",
+        "default": "./dist/svelte.js"
+      },
+      "require": {
+        "types": "./dist/svelte.d.cts",
+        "default": "./dist/svelte.cjs"
+      }
+    },
+    "./vue": {
+      "import": {
+        "types": "./dist/vue.d.ts",
+        "default": "./dist/vue.js"
+      },
+      "require": {
+        "types": "./dist/vue.d.cts",
+        "default": "./dist/vue.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "require": {
+        "types": "./dist/testing.d.cts",
+        "default": "./dist/testing.cjs"
+      }
+    },
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
   },
@@ -39,16 +79,18 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "protocol"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && esbuild src/index.ts --bundle --format=esm --platform=browser --sourcemap --outfile=dist/index.js && esbuild src/index.ts --bundle --format=cjs --platform=browser --sourcemap --outfile=dist/index.cjs && cp dist/index.d.ts dist/index.d.cts && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js",
+    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && esbuild src/index.ts --bundle --format=esm --platform=browser --sourcemap --outfile=dist/index.js && esbuild src/index.ts --bundle --format=cjs --platform=browser --sourcemap --outfile=dist/index.cjs && cp dist/index.d.ts dist/index.d.cts && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js && for e in store svelte vue testing; do esbuild src/$e.ts --bundle --external:vue --format=esm --platform=neutral --sourcemap --outfile=dist/$e.js && esbuild src/$e.ts --bundle --external:vue --format=cjs --platform=neutral --sourcemap --outfile=dist/$e.cjs && cp dist/$e.d.ts dist/$e.d.cts; done",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.1",
     "typescript": "^5.6.0",
-    "esbuild": "0.28.1"
+    "vue": "3.5.13"
   },
   "keywords": [
     "custom-domain",
@@ -66,5 +108,13 @@
     "lets-encrypt",
     "vanity-domain",
     "entri-alternative"
-  ]
+  ],
+  "peerDependencies": {
+    "vue": ">=3.3.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  }
 }

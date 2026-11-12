@@ -1,0 +1,90 @@
+{
+  "$comment": "The widget's postMessage protocol (PP-W12.8, TARGET-ARCHITECTURE §3.1). Every message the widget frame sends to the embedding page (events), every message it accepts from it or from its own windows (inbound), and the error codes, statuses and setup types events carry. Messages are {type, payload}. test/protocol.test.ts fails when the widget posts or accepts a type not listed here, or an event's payload has a key its entry lacks. The SDK repository tests against a pinned copy. Treat every list as open: a newer widget may add a type, a key or a code.",
+  "version": 1,
+  "envelope": { "type": "string, one of the names below", "payload": "object, the entry's payload" },
+  "events": {
+    "customdomain:ready": { "when": "the frame loaded and listens for init", "payload": {} },
+    "customdomain:step": {
+      "when": "every screen change",
+      "payload": {
+        "step": "Status",
+        "domain": "string?",
+        "provider": "string?",
+        "user": "string? (the integrator's userId)",
+        "deferred": "boolean? (the setup continues in the background after close)",
+        "error": "{code: ErrorCode, title: string, details?: string}? (after an error screen)",
+        "pendingDomains": "string[]? (a domain queue is active)",
+        "processedDomains": "string[]? (a domain queue is active)"
+      }
+    },
+    "customdomain:success": {
+      "when": "the domain went live, or a reconnect renewed its key",
+      "payload": {
+        "jobId": "string?",
+        "domain": "string",
+        "setupType": "SetupType",
+        "provider": "string|null",
+        "success": "true",
+        "reconnected": "true? (setupType reconnect)",
+        "alreadyConnected": "true? (the domain was already live)",
+        "pendingDomains": "string[]?",
+        "processedDomains": "string[]?"
+      }
+    },
+    "customdomain:error": {
+      "when": "the widget shows an error",
+      "payload": { "code": "ErrorCode", "title": "string", "details": "string? (the sentence the person saw)", "message": "string? (the same sentence)" }
+    },
+    "customdomain:fallback": {
+      "when": "once per domain, when the person is sent to the records",
+      "payload": { "reason": "FallbackReason", "provider": "string?", "screen": "string", "message": "string?" }
+    },
+    "customdomain:close": {
+      "when": "the modal closes",
+      "payload": { "lastStatus": "Status", "shared": "boolean", "manualScreenDisabled": "boolean" }
+    },
+    "customdomain:request-close": { "when": "the person asked to close and the host delegates dismissal", "payload": { "lastStatus": "Status" } },
+    "customdomain:shared": { "when": "a setup link was handed to someone else", "payload": { "domain": "string", "link": "string?", "jobId": "string?" } },
+    "customdomain:purchase": {
+      "when": "the buy flow made a checkout session",
+      "payload": { "domain": "string", "sessionId": "string?", "clientSecret": "string?", "url": "string?" }
+    },
+    "customdomain:removed": {
+      "when": "a removal finished",
+      "payload": {
+        "domain": "string",
+        "connectionId": "string?",
+        "records": "RemovalOutcome",
+        "removed": "array",
+        "restored": "array",
+        "leftInPlace": "array",
+        "user": "string?"
+      }
+    },
+    "customdomain:doc-click": { "when": "the person opened the integrator's setup documentation", "payload": { "provider": "string?", "domain": "string?" } },
+    "customdomain:token-expired": { "when": "the token expired and the host gave no fresh one", "payload": {} }
+  },
+  "inbound": {
+    "customdomain:init": {
+      "from": "the embedding page, once per mount; pins the host origin",
+      "payload": { "token": "string", "domain": "string?", "dnsRecords": "array?", "theme": "object? (legacy)", "config": "object? (the widget options, see the SDK reference)" }
+    },
+    "customdomain:token": { "from": "the pinned host, answering a token refresh", "payload": { "token": "string|null" } },
+    "customdomain:oauth": {
+      "from": "the control plane's sign-in finish page, or the widget's own sign-in popup",
+      "payload": { "ok": "boolean", "code": "string?", "message": "string?", "connection_id": "string?", "provider": "string?", "domain": "string?", "managed": "boolean?", "account": "string?", "purpose": "string?" }
+    },
+    "customdomain:preview": { "from": "the console's preview only (same origin)", "payload": { "config": "object?", "stage": "string?", "phase": "number?" } }
+  },
+  "sheet": {
+    "$comment": "Between the widget and the secure sign-in sheet it opens, both of this widget's origin; never seen by the host.",
+    "messages": ["customdomain:browser-close", "customdomain:browser-ready", "customdomain:browser-escape"]
+  },
+  "types": {
+    "Status": ["INITIAL", "ENTER_DOMAIN", "DOMAIN_ANALYSIS", "DOMAIN_SETUP", "IN_PROGRESS", "EXISTING_RECORDS", "LOGIN", "LOGIN_2FA", "MANUAL_CONFIGURATION", "PROVIDER_MANUAL_SELECTION", "EXIT_WITH_ERROR", "DKIM_SETUP", "FINISHED_SUCCESSFULLY", "FINISHED_SUCCESSFULLY_MANUAL", "FINISHED_SUCCESSFULLY_LINK_SHARED"],
+    "ErrorCode": ["AccessDeniedError", "AuthCodeError", "InvalidCredentialsError", "InvalidDomainError", "EmailNotVerifiedError", "SpfRecordsLimitError", "SpfRecordsLengthError", "GenericError", "TimeoutError", "UserInputTimeoutError", "SessionError", "ProviderError", "PurchaseDomainError", "RegistroDomainInTransition", "DomainConnectError", "PopupBlockedError", "RateLimitError", "NetworkError", "InvalidNameservers", "ProviderAuthenticationError", "PlanLimitError"],
+    "SetupType": ["automatic", "manual", "semiautomatic", "sharedLogin", "purchase", "reconnect"],
+    "FallbackReason": ["no_end_user_rail", "conflicts_exceed_tolerance", "provider_unsupported", "unknown_provider", "chose_records"],
+    "RemovalOutcome": ["removed", "partly_removed", "kept", "manual", "in_use", "not_needed"]
+  }
+}

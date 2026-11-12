@@ -2,7 +2,7 @@
 
 The browser SDK that lets your SaaS users connect their own domain.
 
-**Status:** Maintained · v0.5.9 · TypeScript · published to npm with provenance
+**Status:** Maintained · v0.6.0 · TypeScript · published to npm with provenance
 
 [![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
@@ -18,7 +18,7 @@ The browser SDK that lets your SaaS users connect their own domain.
 | **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
 | **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
 | **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
-| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.5.9** on npm · every pull request builds the real bundle and drives it through headless Chromium |
+| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.6.0** on npm · every pull request builds the real bundle and drives it through headless Chromium |
 
 This repository is the client half of [CustomDomain™](https://customdomain.ai): two npm packages
 your application installs, plus the widget they open. Your app calls one function; the user pastes
@@ -224,6 +224,27 @@ onBeforeUnmount(() => customdomain.close());
   <button @click="connect">Connect your domain</button>
 </template>
 ```
+
+### Setup state for any framework (0.6)
+
+`customdomain-js/store` keeps where a setup stands (`idle`, `open`, `success`, `error`, `closed`, with the last
+step, result, error, fallback and removal) from the widget's events. Pass `store.bind(config)` to `open()`; your
+own callbacks still run.
+
+```ts
+import { customdomain } from "customdomain-js";
+import { createSetupStore } from "customdomain-js/store";
+
+const store = createSetupStore();
+customdomain.open(store.bind({ applicationId, token }));
+store.subscribe(() => console.log(store.getSnapshot().phase));
+```
+
+- **React:** `useSetupState(store)` from `@customdomain/react`.
+- **Vue:** `useSetupState(store)` from `customdomain-js/vue` returns a ref (vue 3.3 or newer).
+- **Svelte:** `toReadable(store)` from `customdomain-js/svelte` is a readable store: `$setup.phase`.
+- **Tests:** `simulateSetup(config, outcome, { domain })` from `customdomain-js/testing` plays a success, error,
+  fallback or cancel into your callbacks with no iframe and no network.
 
 ### Plain script tag
 
