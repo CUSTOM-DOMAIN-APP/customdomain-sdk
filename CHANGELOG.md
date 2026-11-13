@@ -40,13 +40,6 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
-### Added
-
-- `open({ requestUri })`: start the widget from a pushed authorization request instead of a token (pass
-  `token: ""`). `onSuccess` then carries the request's `state`. Works once integrator OAuth is available to your
-  workspace.
-- `protocol/protocol.json`: the init message's `clientId` and `requestUri`, and `state` on `customdomain:success`.
-
 ## [0.6.0] (2026-11-12)
 
 ### Added

@@ -540,24 +540,3 @@ test("open() without askEndUserEmail leaves it undefined: the application's sett
   assert.equal(payload.config.askEndUserEmail, undefined);
   sdk.close();
 });
-
-test("open({ requestUri }) hands the pushed request to the widget instead of a token (integrator OAuth)", () => {
-  const sdk = new CustomDomain();
-  const uri = "urn:ietf:params:oauth:request_uri:par_1";
-  sdk.open({ applicationId: "app_1", token: "", requestUri: uri, widgetBase: WIDGET });
-  const payload = initPayload();
-  assert.equal(payload.token, "");
-  assert.equal(payload.requestUri, uri);
-  assert.equal(payload.clientId, "app_1");
-  sdk.close();
-});
-
-test("a token open sends no pushed-request keys", () => {
-  const sdk = new CustomDomain();
-  sdk.open({ applicationId: "app_1", token: "tok", widgetBase: WIDGET });
-  const payload = initPayload();
-  assert.equal(payload.token, "tok");
-  assert.equal("requestUri" in payload, false);
-  assert.equal("clientId" in payload, false);
-  sdk.close();
-});
