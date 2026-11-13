@@ -115,17 +115,8 @@ export interface TokenRequest {
 export interface OpenConfig {
   /** Application id (public). */
   applicationId: string;
-  /**
-   * Short-lived widget JWT minted server-side via POST /v1/tokens. Leave it empty when you pass `requestUri`
-   * instead.
-   */
+  /** Short-lived widget JWT minted server-side via POST /v1/tokens. */
   token: string;
-  /**
-   * Integrator OAuth: a pushed authorization request your server made (its `request_uri`). The widget redeems it
-   * once instead of a token, runs for the domain and end user you pushed, and returns your request's `state` on
-   * success. Pass it with `token: ""`. Needs integrator OAuth to be turned on for your workspace.
-   */
-  requestUri?: string;
   /** Pre-filled domain (incumbent: prefilledDomain; string or [string]). */
   domain?: string;
   prefilledDomain?: string | string[];
@@ -312,8 +303,6 @@ export interface SuccessResult {
   provider?: string | null;
   /** Always true on the success event — mirrors the incumbent's flag. */
   success?: true;
-  /** Integrator OAuth: the `state` of the pushed request the widget ran for (`open({ requestUri })`). */
-  state?: string;
   /** Sell: the free domain granted with a paid plan, when applicable. */
   freeDomain?: string;
   /**
@@ -1127,9 +1116,7 @@ function buildInitPayload(
   prefilledDomain: string | string[] | undefined
 ) {
   return {
-    token: config.requestUri ? "" : config.token,
-    // Integrator OAuth: the widget redeems the pushed request for its token (the widget's pushed.ts).
-    ...(config.requestUri ? { clientId: config.applicationId, requestUri: config.requestUri } : {}),
+    token: config.token,
     domain,
     dnsRecords: records,
     theme: config.theme,
