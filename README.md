@@ -1,14 +1,8 @@
-# CustomDomain™ SDK: custom domains for your SaaS in JavaScript and React
-
-The browser SDK that lets your SaaS users connect their own domain.
-
-**Status:** Maintained · v0.6.0 · TypeScript · published to npm with provenance
-
-[![ci](https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&label=ci)](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&label=customdomain-js)](https://www.npmjs.com/package/customdomain-js)
-[![npm](https://img.shields.io/npm/v/@customdomain/react?style=flat&color=1c1917&label=%40customdomain%2Freact)](https://www.npmjs.com/package/@customdomain/react)
-[![docs](https://img.shields.io/badge/docs-docs.customdomain.ai-1c1917?style=flat)](https://docs.customdomain.ai/docs/widget-sdk/overview)
-[![license](https://img.shields.io/badge/license-Apache--2.0-1c1917?style=flat)](./LICENSE)
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/media/customdomain-mark-dark.png"><img src=".github/media/customdomain-mark.png" alt="CustomDomain" width="56"></picture></p>
+<h1 align="center">CustomDomain SDK</h1>
+<p align="center"><b>The JavaScript and React SDK that opens the CustomDomain™ widget in your app, so your users connect their own domain.</b></p>
+<p align="center"><a href="https://www.npmjs.com/package/customdomain-js"><img src="https://img.shields.io/npm/v/customdomain-js?style=flat&color=1c1917&logo=npm&logoColor=white&label=customdomain-js" alt="npm"></a> <a href="https://www.npmjs.com/package/@customdomain/react"><img src="https://img.shields.io/npm/v/@customdomain/react?style=flat&color=1c1917&logo=react&logoColor=white&label=%40customdomain%2Freact" alt="npm"></a> <a href="https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/CUSTOM-DOMAIN-APP/customdomain-sdk/ci.yml?style=flat&color=1c1917&logo=githubactions&logoColor=white&label=ci" alt="ci"></a> <a href="https://docs.customdomain.ai/docs/widget-sdk/overview"><img src="https://img.shields.io/badge/docs-widget%20and%20SDK-1c1917?style=flat" alt="docs"></a> <a href="https://www.producthunt.com/products/custom-domain"><img src="https://img.shields.io/badge/Product%20Hunt-CustomDomain-1c1917?style=flat&logo=producthunt&logoColor=white" alt="Product Hunt"></a></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/media/widget-flow-dark.png"><img src=".github/media/widget-flow-light.png" alt="The CustomDomain widget: your user types their domain, signs in at their provider, and it goes live" width="860"></picture></p>
 
 [Website](https://customdomain.ai) · [Docs](https://docs.customdomain.ai/docs) · [Console](https://app.customdomain.ai) · [Widget and SDK reference](https://docs.customdomain.ai/docs/widget-sdk/reference) · [Releases](https://github.com/CUSTOM-DOMAIN-APP/customdomain-sdk/releases) · [Changelog](./CHANGELOG.md)
 
@@ -18,12 +12,10 @@ The browser SDK that lets your SaaS users connect their own domain.
 | **Who it's for** | SaaS teams whose users want `acme.com`, not `acme.yourapp.com` |
 | **Live at** | [customdomain.ai](https://customdomain.ai) · docs at [docs.customdomain.ai/docs](https://docs.customdomain.ai/docs) |
 | **Stack** | TypeScript · pnpm workspace · `customdomain-js` ships zero runtime dependencies |
-| **Status** | Maintained · `customdomain-js` and `@customdomain/react` both at **0.6.0** on npm · every pull request builds the real bundle and drives it through headless Chromium |
 
 This repository is the client half of [CustomDomain™](https://customdomain.ai): two npm packages
 your application installs, plus the widget they open. Your app calls one function; the user pastes
-a domain; DNS records, ownership verification and TLS certificates are handled by the control
-plane. The backend, the edge and the certificate machinery live in a separate private repository.
+a domain; DNS records, ownership verification and TLS certificates are handled for you.
 
 ## Why this exists
 
@@ -37,18 +29,14 @@ the failure mode is not an exception in your logs; it is a support ticket that s
 
 CustomDomain™ turns that into a payment-method-shaped interaction: paste the domain, and either
 the provider is authorized in one click or the widget shows the exact records and watches for
-them. Of the 178 DNS and registrar providers catalogued today, 62 have an automatic write path;
-the rest use a guided manual flow with automatic verification. Those counts come from a live
-endpoint, and the Quickstart below shows you how to read it yourself.
-
-![Paste your domain, DNS verifies itself, live with TLS: the three-step connect flow](docs/assets/hero-light.svg)
+them.
 
 ## Install
 
-```sh
-npm install customdomain-js          # framework agnostic
-npm install @customdomain/react      # React hooks and components
-```
+|  | Package | Install |
+|---|---|---|
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/npm/e7e5e4"><img src="https://cdn.simpleicons.org/npm/1c1917" alt="npm" width="20" height="20"></picture> | `customdomain-js`, framework agnostic | `npm install customdomain-js` |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/react/e7e5e4"><img src="https://cdn.simpleicons.org/react/1c1917" alt="React" width="20" height="20"></picture> | `@customdomain/react`, hooks and components | `npm install @customdomain/react` |
 
 Or skip the build step entirely and load the hosted bundle, which is always current:
 
@@ -80,12 +68,6 @@ the secure sign-in is accepted for it. The hosted widget does not send them yet:
 `getToken` is called with `{ reason: "expired" }`. A `getToken` with no parameter keeps working. See
 [Tokens for the domain the user typed](packages/sdk/README.md#tokens-for-the-domain-the-user-typed).
 
-Check the live provider census the numbers above come from:
-
-```sh
-curl -s https://api.customdomain.ai/v1/providers/census | head -c 200
-```
-
 ## Framework guides
 
 Every guide below has the same two halves. Your server holds the API key and mints a widget token that lasts
@@ -93,7 +75,7 @@ Every guide below has the same two halves. Your server holds the API key and min
 key. Exact token options and errors are in
 [Installation and embed](https://docs.customdomain.ai/docs/widget-sdk/installation-and-embed).
 
-### Next.js
+### <picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/nextdotjs/e7e5e4"><img src="https://cdn.simpleicons.org/nextdotjs/1c1917" alt="Next.js" width="20" height="20"></picture> Next.js
 
 A route handler mints the token. Keep `CUSTOMDOMAIN_API_KEY` in the server environment, and check that the
 caller is signed in before you answer:
@@ -156,7 +138,7 @@ export function ConnectDomainButton({ applicationId, userId }: { applicationId: 
 }
 ```
 
-### React
+### <picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/react/e7e5e4"><img src="https://cdn.simpleicons.org/react/1c1917" alt="React" width="20" height="20"></picture> React
 
 Any React app (Vite, Remix, Create React App) uses the same package. `<CustomdomainConnect>` opens the flow
 when it mounts and closes it when it unmounts or `open` turns `false`:
@@ -183,7 +165,7 @@ export function DomainSettings({ applicationId, token }: { applicationId: string
 }
 ```
 
-### Vue
+### <picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/vuedotjs/e7e5e4"><img src="https://cdn.simpleicons.org/vuedotjs/1c1917" alt="Vue" width="20" height="20"></picture> Vue
 
 Vue uses `customdomain-js` directly. Callbacks passed to `open()` arrive in addition to the `customdomain:*`
 window events:
