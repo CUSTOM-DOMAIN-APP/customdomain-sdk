@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Library manifest: no components. The host app claims its return link on one of its own activities. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
