@@ -93,7 +93,7 @@ object BridgeMessage {
     fun appReturn(resumeToken: String?): JSONObject =
         envelope("customdomain:app-return", JSONObject().apply {
             put("cancelled", resumeToken == null)
-            if (resumeToken != null) put("resumeToken", resumeToken)
+            if (resumeToken != null) put("resume", resumeToken)
         })
 
     /** The Android back button, passed to the widget first. */

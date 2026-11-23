@@ -62,7 +62,7 @@ class BridgeTest {
 
     @Test fun appReturnMessage() {
         val done = BridgeMessage.appReturn("abc").getJSONObject("payload")
-        assertEquals("abc", done.getString("resumeToken"))
+        assertEquals("abc", done.getString("resume"))
         assertFalse(done.getBoolean("cancelled"))
         assertTrue(BridgeMessage.appReturn(null).getJSONObject("payload").getBoolean("cancelled"))
     }

@@ -104,7 +104,7 @@ public enum BridgeMessage {
     /// Sent when the system browser sheet ended. `resumeToken` is nil when the person cancelled.
     public static func appReturn(resumeToken: String?) -> [String: Any] {
         var payload: [String: Any] = ["cancelled": resumeToken == nil]
-        if let resumeToken = resumeToken { payload["resumeToken"] = resumeToken }
+        if let resumeToken = resumeToken { payload["resume"] = resumeToken }
         return envelope("customdomain:app-return", payload)
     }
 

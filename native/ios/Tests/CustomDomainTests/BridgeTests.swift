@@ -68,7 +68,7 @@ final class BridgeTests: XCTestCase {
 
     func testAppReturnMessage() {
         let done = BridgeMessage.appReturn(resumeToken: "abc")["payload"] as? [String: Any]
-        XCTAssertEqual(done?["resumeToken"] as? String, "abc")
+        XCTAssertEqual(done?["resume"] as? String, "abc")
         XCTAssertEqual(done?["cancelled"] as? Bool, false)
         let cancelled = BridgeMessage.appReturn(resumeToken: nil)["payload"] as? [String: Any]
         XCTAssertEqual(cancelled?["cancelled"] as? Bool, true)
