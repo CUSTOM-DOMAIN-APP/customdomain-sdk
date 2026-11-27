@@ -17,14 +17,20 @@ import type {
   CustomDomain,
   OpenConfig,
   PurchaseInitiated as SdkPurchaseInitiated,
+  RailKey as SdkRailKey,
   RemovedResult as SdkRemovedResult,
+  SavedAccess as SdkSavedAccess,
+  SavedAccessRail as SdkSavedAccessRail,
   SuccessResult as SdkSuccessResult,
   TokenRequest as SdkTokenRequest,
 } from "customdomain-js";
 import type {
   CustomdomainEventHandlers,
   PurchaseInitiated,
+  RailKey,
   RemovedResult,
+  SavedAccess,
+  SavedAccessRail,
   SetupType,
   SuccessResult,
   TokenRequest,
@@ -118,6 +124,18 @@ const _getTokenAsOverride: NonNullable<Parameters<UseCustomdomainResult["open"]>
 };
 const _reasonsAreTheWidgets: Exact<TokenRequest["reason"], "expired" | "bind"> = true;
 
+// The kept key and an end user's saved access: `checkDomain` answers them with the SDK's own types, so
+// the wrapper must re-export those, not look-alikes, or the fields they gained (the key's `name` and
+// `deleteUrl`, an end user's key's `fromDomain`) would stop at the SDK. All three are optional: a
+// control plane that sends none of them is still a valid answer.
+const _railKeyIsReExported: Exact<RailKey, SdkRailKey> = true;
+const _savedAccessIsReExported: Exact<SavedAccess, SdkSavedAccess> = true;
+const _savedAccessRailIsReExported: Exact<SavedAccessRail, SdkSavedAccessRail> = true;
+const _keyNamesItselfAndItsDeletePage: Has<RailKey, "name" | "deleteUrl"> = true;
+const _keyFieldsAreOptional: Exact<Pick<RailKey, "name" | "deleteUrl">, { name?: string; deleteUrl?: string }> = true;
+const _endUserKeySaysWhereItWorks: Has<SavedAccess, "fromDomain"> = true;
+const _fromDomainIsOptional: Exact<SavedAccess["fromDomain"], string | undefined> = true;
+
 export type {};
 void _modeIsTheSdks;
 void _reconnectInOptions;
@@ -132,6 +150,13 @@ void _getTokenReadsTheRequest;
 void _getTokenTakesNoArgument;
 void _getTokenAsOverride;
 void _reasonsAreTheWidgets;
+void _railKeyIsReExported;
+void _savedAccessIsReExported;
+void _savedAccessRailIsReExported;
+void _keyNamesItselfAndItsDeletePage;
+void _keyFieldsAreOptional;
+void _endUserKeySaysWhereItWorks;
+void _fromDomainIsOptional;
 void _payloadIsReExported;
 void _removedPayloadIsReExported;
 void _removedHandlerExists;
