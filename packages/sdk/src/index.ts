@@ -17,6 +17,10 @@
  */
 
 import { installEntriCompat } from "./compat";
+import { CustomDomainError, sendJson, type ClientOptions, type RequestOptions } from "./transport";
+
+export { CustomDomainError };
+export type { ClientOptions, RequestOptions };
 
 export type DNSRecordType = "A" | "AAAA" | "CNAME" | "CAA" | "MX" | "NS" | "TXT" | "SPFM" | "REDIR301";
 
@@ -621,32 +625,6 @@ function tokenRequestFrom(payload: unknown): TokenRequest {
   return request;
 }
 
-/**
- * Thrown by `checkDomain` and `checkRecords`, passed to `onError`, and the
- * shape of the `customdomain:error` event detail.
- *
- * `status` is the HTTP status of the control plane response the error came
- * from. It is unset when the error was raised by the widget or by the SDK
- * itself (an `onError` call, a missing `container`). Retry guidance: a 429 or
- * any 5xx is transient, so the same call can be retried after a pause; a 4xx
- * other than 429 answers the same way until the request changes (the token,
- * the domain, the records). A network failure never reaches this class: fetch
- * rejects with a plain `TypeError`, which is also safe to retry.
- */
-export class CustomDomainError extends Error {
-  code: string;
-  details?: string;
-  /** HTTP status of the control plane response, when there was one. */
-  readonly status?: number;
-  constructor(code: string, message: string, details?: string, status?: number) {
-    super(message);
-    this.code = code;
-    this.details = details;
-    this.status = status;
-    this.name = "CustomDomainError";
-  }
-}
-
 const DEFAULT_API = "https://api.customdomain.ai";
 const DEFAULT_WIDGET = "https://app.customdomain.ai";
 /** Spec §1.7 sandbox: popups must escape so provider OAuth can open. */
@@ -678,12 +656,18 @@ function dispatch(name: string, detail: unknown) {
 
 export class CustomDomain {
   private apiBase: string;
+  private clientOpts: ClientOptions;
   private frame: HTMLIFrameElement | null = null;
   private msgHandler: ((e: MessageEvent) => void) | null = null;
   private lastStatus = "INITIAL";
   private lastError: CloseDetail["error"];
 
-  constructor(opts: { apiBase?: string } = {}) {
+  /**
+   * `apiBase`, `timeoutMs`, `retries` and `apiVersion` are defaults for every call this client makes
+   * to the API; each call can override `timeoutMs` and `retries` (see `RequestOptions`).
+   */
+  constructor(opts: ClientOptions = {}) {
+    this.clientOpts = opts;
     this.apiBase = opts.apiBase || DEFAULT_API;
   }
 
@@ -705,16 +689,18 @@ export class CustomDomain {
    */
   async checkDomain(
     domain: string,
-    cfg: { token: string; apiBase?: string; dnsRecords?: DNSRecord[] }
+    cfg: { token: string; apiBase?: string; dnsRecords?: DNSRecord[] } & RequestOptions
   ): Promise<CheckDomainResult> {
     const records = cfg.dnsRecords?.map((rec) => ({ type: rec.type, host: rec.host, value: rec.value }));
-    const res = await fetch(`${cfg.apiBase || this.apiBase}/v1/domains:check`, {
+    const r = await sendJson({
+      url: `${cfg.apiBase || this.apiBase}/v1/domains:check`,
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.token}` },
-      body: JSON.stringify(records?.length ? { domain, records } : { domain }),
+      token: cfg.token,
+      body: records?.length ? { domain, records } : { domain },
+      readOnly: true, // a pre-flight reads and changes nothing, so it is safe to retry
+      call: cfg,
+      defaults: this.clientOpts,
     });
-    if (!res.ok) throw await toError(res);
-    const r = await res.json();
     // The API speaks snake_case; adapt to the camelCase view exactly once here
     // so no caller ever reads the wrong field.
     return {
@@ -782,20 +768,22 @@ export class CustomDomain {
    */
   async checkRecords(
     domain: string,
-    cfg: { token: string; dnsRecords: DNSRecord[]; apiBase?: string }
+    cfg: { token: string; dnsRecords: DNSRecord[]; apiBase?: string } & RequestOptions
   ): Promise<CheckRecordsResult> {
     const baseline = (cfg.dnsRecords || []).map((r) => ({
       subdomain: relativeHost(r.host, domain),
       type: r.type,
       values: [r.value],
     }));
-    const res = await fetch(`${cfg.apiBase || this.apiBase}/v1/monitor:check`, {
+    const r = await sendJson({
+      url: `${cfg.apiBase || this.apiBase}/v1/monitor:check`,
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.token}` },
-      body: JSON.stringify({ domain, baseline }),
+      token: cfg.token,
+      body: { domain, baseline },
+      readOnly: true, // a check reads live DNS and changes nothing, so it is safe to retry
+      call: cfg,
+      defaults: this.clientOpts,
     });
-    if (!res.ok) throw await toError(res);
-    const r = await res.json();
     // The control plane emits `{domain, drift: bool, records: [{subdomain, type,
     // verdict, drift, expected, observed}]}` (monitor.go:169-193) — the observed
     // values live INSIDE each record, and `observed` is `omitempty`, so a record
@@ -1219,15 +1207,6 @@ function savedAccess(a: any): SavedAccess {
     ...(a.key_expires_at != null ? { keyExpiresAt: a.key_expires_at } : {}),
     ...(a.last_used_at != null ? { lastUsedAt: a.last_used_at } : {}),
   };
-}
-
-async function toError(res: Response): Promise<CustomDomainError> {
-  try {
-    const body = await res.json();
-    return new CustomDomainError(body.code || `http_${res.status}`, body.title || res.statusText, body.details, res.status);
-  } catch {
-    return new CustomDomainError(`http_${res.status}`, res.statusText, undefined, res.status);
-  }
 }
 
 /** Default singleton, attached to window in browsers. */
