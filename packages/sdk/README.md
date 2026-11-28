@@ -67,7 +67,7 @@ script exposes the same instance as `window.customdomain`.
 | Method | Purpose |
 |---|---|
 | `open(config)` | Open the connect widget, or the flow `mode` names. Returns `{ close }`. |
-| `checkDomain(domain, { token, dnsRecords? })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. Pass `dnsRecords` to check conflicts against the records you intend to write. Every field is listed under [Pre-flight with `checkDomain`](#pre-flight-with-checkdomain). Throws a `CustomDomainError` with `status` set, see [Errors and retries](#errors-and-retries). |
+| `checkDomain(domain, { token, dnsRecords? })` | Pre-flight a domain: provider, which connection rails can run, root-domain support, record conflicts, and the Public Suffix List split. Pass `dnsRecords` to check conflicts against the records you intend to write. Every field is listed under [Pre-flight with `checkDomain`](#pre-flight-with-checkdomain). Throws a `CustomDomainError` with `status` set, see [Errors and retries](#errors-and-retries); both methods also take the [request options](#request-options). |
 | `checkRecords(domain, { token, dnsRecords })` | Check a record set against live public DNS. Resolves to `{ domain, inSync, records }`, one entry per record with the values observed. Throws like `checkDomain`. |
 | `purchaseDomain(config)` | Open the widget on the buy-a-domain screen. |
 | `removeDomain(config)` | Open the widget on the removal flow for a connected domain. Pass `connectionId`, or the domain as `domain` / `prefilledDomain`. Returns `{ close }`. See [Removing a domain](#removing-a-domain). |
@@ -298,28 +298,47 @@ The exported types `CheckDomainResult`, `RailInfo`, `RailKey`, `DnsHostingVerdic
 
 `checkDomain` and `checkRecords` throw a `CustomDomainError` when the control plane answers with
 an error, and `onError` receives one when the widget reports an error. The class carries `code`,
-`message`, `details?` and `status?`.
+`message`, `details?`, `status?` and `requestId?`.
 
 - `status` is the HTTP status of the response the error came from. It is unset on errors raised
-  by the widget (`onError`) or by the SDK itself, such as a `container` that matches nothing or a
-  `loadSharedFlow` link on another origin.
-- Safe to retry: a `status` of 429 or any 5xx. Wait a moment and send the same call again. A
-  network failure never becomes a `CustomDomainError`: `fetch` rejects with a plain `TypeError`,
-  which is also safe to retry.
-- Not safe to retry as is: any other 4xx. The same request gets the same answer until something
-  changes: the token (expired, or minted for another application), the domain, or the records.
+  by the widget (`onError`) or by the SDK itself, such as a `container` that matches nothing, a
+  `loadSharedFlow` link on another origin or a timeout (`code: "request_timeout"`).
+- `requestId` is the `X-Request-Id` of the response. Quote it when you contact support.
+- The SDK retries for you. A network failure, a timeout, a 429 and any 5xx are sent again up to
+  twice, with a growing, jittered pause, and a `Retry-After` is honoured (a wait over 30 seconds is
+  not slept: the error is thrown). A network failure that outlasts the retries is the plain
+  `TypeError` `fetch` raised.
+- Not retried: any other 4xx. The same request gets the same answer until something changes: the
+  token (expired, or minted for another application), the domain, or the records.
 - A successful `checkDomain` with `detectionError: "resolver"` is transient too: the DNS lookup
   failed, so check again before telling the user anything.
+
+### Request options
+
+Every call to the API accepts these, next to `token`. Set the first three as defaults with
+`new CustomDomain({ timeoutMs, retries, apiVersion })`; a per call value wins.
+
+| Option | Meaning |
+|---|---|
+| `timeoutMs` | Give up on one attempt after this long. Default `30000`; `0` turns it off. |
+| `signal` | An `AbortSignal`. Aborting rejects with the signal's reason and sends nothing again. |
+| `retries` | Retries after the first attempt. Default `2`; `0` turns them off. |
+| `idempotencyKey` | Sent as `Idempotency-Key`, and sent again unchanged on every retry. |
+| `apiVersion` (client only) | The API date sent as `CustomDomain-Version` on every call. Default: the date this release was built against; `null` sends none. |
+
+A call that changes something is retried only when it carries an `Idempotency-Key`; the SDK
+generates one for the calls that accept it. `checkDomain` and `checkRecords` only read, so they
+retry without one.
 
 ```ts
 import { customdomain, CustomDomainError } from "customdomain-js";
 
+const ctrl = new AbortController();
 try {
-  await customdomain.checkDomain("acme.com", { token });
+  await customdomain.checkDomain("acme.com", { token, timeoutMs: 5000, signal: ctrl.signal });
 } catch (err) {
-  const transient = err instanceof CustomDomainError ? err.status === 429 || (err.status ?? 0) >= 500 : err instanceof TypeError;
-  if (transient) scheduleRetry();
-  else showError(err);
+  if (err instanceof CustomDomainError) showError(err, err.requestId);
+  else throw err;
 }
 ```
 

@@ -40,6 +40,25 @@ missing, the workflow falls back to notes generated from commits and pull reques
 
 ## [Unreleased]
 
+Minor release when cut: new options on the existing calls, no removed or renamed API.
+
+### Added
+
+- **`customdomain-js`**: `checkDomain` and `checkRecords` take `timeoutMs`, `signal` (an `AbortSignal`), `retries`
+  and `idempotencyKey`. `new CustomDomain({ timeoutMs, retries, apiVersion })` sets the defaults.
+- **`customdomain-js`**: `CustomDomainError.requestId`, the `X-Request-Id` of the response the error came from.
+- **`customdomain-js`**: a timeout throws a `CustomDomainError` with code `request_timeout`.
+- **`customdomain-js`**: the types `RequestOptions` and `ClientOptions` (also re-exported by `@customdomain/react`).
+
+### Changed
+
+- **`customdomain-js`**: every call to the API now sends `CustomDomain-Version` with the date this release was built
+  against. `new CustomDomain({ apiVersion: null })` sends none.
+- **`customdomain-js`**: a network failure, a timeout, a 429 or a 5xx is now retried up to twice with backoff and
+  jitter before the error is thrown, honouring `Retry-After` (waits over 30 seconds are not slept). A call that changes
+  something is retried only with an `Idempotency-Key`; the same key is sent on each retry.
+- **`customdomain-js`**: each attempt now times out after 30 seconds (`timeoutMs: 0` turns it off).
+
 ## [0.6.0] (2026-11-12)
 
 ### Added

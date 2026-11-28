@@ -83,7 +83,7 @@
     "protocol"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && esbuild src/index.ts --bundle --format=esm --platform=browser --sourcemap --outfile=dist/index.js && esbuild src/index.ts --bundle --format=cjs --platform=browser --sourcemap --outfile=dist/index.cjs && cp dist/index.d.ts dist/index.d.cts && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js && for e in store svelte vue testing; do esbuild src/$e.ts --bundle --external:vue --format=esm --platform=neutral --sourcemap --outfile=dist/$e.js && esbuild src/$e.ts --bundle --external:vue --format=cjs --platform=neutral --sourcemap --outfile=dist/$e.cjs && cp dist/$e.d.ts dist/$e.d.cts; done",
+    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && esbuild src/index.ts --bundle --format=esm --platform=browser --sourcemap --outfile=dist/index.js && esbuild src/index.ts --bundle --format=cjs --platform=browser --sourcemap --outfile=dist/index.cjs && cp dist/index.d.ts dist/index.d.cts && esbuild src/index.ts --bundle --format=iife --minify --outfile=dist/customdomain-sdk.js && esbuild src/transport.ts --bundle --format=esm --platform=browser --outfile=dist/transport.js && for e in store svelte vue testing; do esbuild src/$e.ts --bundle --external:vue --format=esm --platform=neutral --sourcemap --outfile=dist/$e.js && esbuild src/$e.ts --bundle --external:vue --format=cjs --platform=neutral --sourcemap --outfile=dist/$e.cjs && cp dist/$e.d.ts dist/$e.d.cts; done",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.mjs"
   },

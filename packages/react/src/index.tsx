@@ -50,6 +50,8 @@ export type {
   IntegrationWarning,
   ManagedDnsAvailability,
   CheckRecordsResult,
+  RequestOptions,
+  ClientOptions,
 } from "customdomain-js";
 export { CustomDomain, CustomDomainError } from "customdomain-js";
 
